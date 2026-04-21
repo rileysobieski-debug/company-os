@@ -21,6 +21,7 @@ from decimal import Decimal
 
 import pytest
 
+from core.primitives.canonicalizer_registry import default_canonicalizer_registry
 from core.primitives.exceptions import SignatureError, VerdictError
 from core.primitives.identity import (
     Ed25519Keypair,
@@ -450,6 +451,19 @@ class TestRoundTrip:
 # Protocol version
 # ---------------------------------------------------------------------------
 class TestProtocolVersion:
+    @pytest.fixture(autouse=True)
+    def register_v02(self):
+        """Register a passthrough 0.2 canonicalizer so tests that create a
+        verdict with protocol_version="companyos-verdict/0.2" work correctly.
+        The passthrough uses the same rules as 0.1 -- these tests only care
+        that the version string is stored and that it participates in the hash,
+        not that the bytes differ."""
+        default_canonicalizer_registry.register(
+            "companyos-verdict/0.2", _canonical_bytes
+        )
+        yield
+        default_canonicalizer_registry._registry.pop("companyos-verdict/0.2", None)
+
     def test_default_protocol_version_populated(self, keypair):
         v = OracleVerdict.create(**_base_kwargs(keypair))
         assert v.protocol_version == "companyos-verdict/0.1"

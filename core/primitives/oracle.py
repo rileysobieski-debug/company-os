@@ -56,6 +56,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Literal, get_args
 
+from core.primitives.canonicalizer_registry import (
+    default_canonicalizer_registry,
+    extract_protocol_version,
+)
 from core.primitives.exceptions import SignatureError, VerdictError
 from core.primitives.identity import (
     Ed25519Keypair,
@@ -180,6 +184,11 @@ def _canonical_bytes(
 
     `sort_keys=True` handles recursive key-sorting of nested dicts
     (including `evidence`), matching the SLA canonical idiom.
+
+    This function encodes the companyos-verdict/0.1 canonicalization rules.
+    It is registered into `default_canonicalizer_registry` below so that
+    both sign-time (OracleVerdict.create) and verify-time
+    (OracleVerdict.verify_signature) dispatch through the registry.
     """
     shell = _verdict_shell_dict(verdict, exclude_verdict_hash=exclude_verdict_hash)
     return json.dumps(
@@ -189,6 +198,17 @@ def _canonical_bytes(
         ensure_ascii=False,
         default=_json_default,
     ).encode("utf-8")
+
+
+# Register the v1a canonicalization rules.
+# This runs at module-load time. oracle.py imports the registry (not the
+# reverse), so there is no circular import. Future protocol versions are
+# registered by importing this module and calling
+# default_canonicalizer_registry.register("companyos-verdict/0.x", fn).
+default_canonicalizer_registry.register(
+    "companyos-verdict/0.1",
+    _canonical_bytes,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -302,18 +322,25 @@ class OracleVerdict:
             "evidence": evidence,
             # verdict_hash placeholder excluded below
             "signer": keypair.public_key,
-            # signature excluded by _canonical_bytes
+            # signature excluded by canonicalizer
             "issued_at": issued_at,
             "protocol_version": protocol_version,
             "score": score,
         }
-        body = _canonical_bytes(shell, exclude_verdict_hash=True)
+
+        # Protocol-constant step (ruling 20): read protocol_version from the
+        # shell BEFORE invoking any canonicalizer. The version parse is
+        # protocol-constant; the canonicalizer is protocol-varying.
+        _version = extract_protocol_version(shell)
+        canonicalize = default_canonicalizer_registry.get(_version)
+
+        body = canonicalize(shell, exclude_verdict_hash=True)
         verdict_hash = hashlib.sha256(body).hexdigest()
 
         # Include verdict_hash in the bytes that get signed so the signature
         # commits to the hash (and therefore to all content fields).
         shell_with_hash = dict(shell, verdict_hash=verdict_hash)
-        signing_body = _canonical_bytes(shell_with_hash, exclude_verdict_hash=False)
+        signing_body = canonicalize(shell_with_hash, exclude_verdict_hash=False)
         sig = _identity_sign(keypair, signing_body)
 
         return cls(
@@ -368,9 +395,16 @@ class OracleVerdict:
                 "signature.signer does not match top-level signer field"
             )
 
+        # Protocol-constant step (ruling 20): read protocol_version from the
+        # verdict BEFORE invoking any canonicalizer. The version parse is
+        # protocol-constant; the canonicalizer is protocol-varying.
+        # Unknown protocol_version raises ValueError (not SignatureError).
+        _version = self.protocol_version
+        canonicalize = default_canonicalizer_registry.get(_version)
+
         # Recompute the bytes that were signed in `create`: canonical bytes
         # with verdict_hash included and signature excluded.
-        signing_body = _canonical_bytes(self, exclude_verdict_hash=False)
+        signing_body = canonicalize(self, exclude_verdict_hash=False)
         if not _identity_verify(self.signature, signing_body):
             raise SignatureError(
                 "OracleVerdict signature failed cryptographic verification"
