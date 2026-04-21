@@ -1,5 +1,5 @@
 """
-tests/test_mock_adapter.py — Ticket 3 + A5 coverage
+tests/test_mock_adapter.py -- Ticket 3 + A5 coverage
 ====================================================
 Tests for `core.primitives.settlement_adapters.mock_adapter.MockSettlementAdapter`.
 
