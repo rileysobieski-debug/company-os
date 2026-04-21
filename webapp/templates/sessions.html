@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Sessions — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Sessions</h1>
+<p class="muted">Per-conversation working directories created by the orchestrator.</p>
+
+{% if sessions %}
+<ul class="session-list">
+  {% for s in sessions %}
+  <li class="session-card">
+    <h3>{{ s.name }}</h3>
+    <div class="muted small">{{ s.file_count }} files · {{ s.mtime }}</div>
+    {% if s.sample_files %}
+    <ul class="tight">
+      {% for f in s.sample_files %}
+      <li><code>{{ f }}</code></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="muted small mono">{{ s.path }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">No sessions yet.</div>
+{% endif %}
+{% endblock %}

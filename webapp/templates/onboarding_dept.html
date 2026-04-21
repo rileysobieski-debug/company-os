@@ -1,0 +1,691 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.display_name or dept.name }} onboarding — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .onb-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .onb-header h1 { margin: 0; }
+  .onb-header .back { font-size: 13px; color: #6b7280; text-decoration: none; }
+  .onb-header .back:hover { color: #111; }
+
+  .phase-track { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 22px; }
+  .phase-step {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px;
+    text-align: center; font-size: 12px; position: relative;
+  }
+  .phase-step.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .phase-step.done { background: #065f46; color: #fff; border-color: #065f46; }
+  .phase-step.skipped { background: #fbbf24; color: #78350f; border-color: #fbbf24; }
+  .phase-step .n { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .7; margin-bottom: 2px; }
+  .phase-step .t { font-weight: 500; }
+
+  .phase-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+  .phase-card.in-progress { border-left: 4px solid #2563eb; background: #f0f9ff; }
+  .phase-card.pending-signoff { border-left: 4px solid #f59e0b; background: #fffbeb; }
+  .phase-card.approved { border-left: 4px solid #10b981; }
+  .phase-card.rejected { border-left: 4px solid #dc2626; }
+
+  .phase-card h2 { margin: 0 0 8px; font-size: 16px; }
+  .phase-card .status { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .phase-card p { margin: 6px 0; font-size: 13px; color: #374151; }
+
+  .artifact-preview {
+    background: #0f172a; color: #e5e7eb; padding: 12px 14px; border-radius: 6px; font-size: 12px;
+    line-height: 1.5; white-space: pre-wrap; max-height: 420px; overflow-y: auto; font-family: ui-monospace, monospace;
+    margin-top: 10px;
+  }
+  .artifact-preview:empty { display: none; }
+
+  .signoff-form {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-top: 14px;
+  }
+  .signoff-form .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; font-weight: 600; margin-bottom: 6px; }
+  .signoff-form .rating-row { display: flex; gap: 4px; margin-bottom: 10px; }
+  .signoff-form .rating-row label {
+    display: flex; align-items: center; justify-content: center; padding: 6px 12px;
+    border: 1px solid #cbd5e1; border-radius: 5px; cursor: pointer; font-size: 13px;
+    min-width: 40px;
+  }
+  .signoff-form .rating-row input { display: none; }
+  .signoff-form .rating-row input:checked + label { background: #111; color: #fff; border-color: #111; }
+  .signoff-form textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 5px;
+    font-family: inherit; font-size: 13px; box-sizing: border-box; min-height: 60px;
+  }
+  .signoff-form .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .signoff-form button {
+    border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .signoff-form button.approve { background: #10b981; color: #fff; }
+  .signoff-form button.approve:hover { background: #059669; }
+  .signoff-form button.reject { background: #dc2626; color: #fff; }
+  .signoff-form button.reject:hover { background: #b91c1c; }
+  .signoff-form button.skip { background: #fbbf24; color: #78350f; }
+  .signoff-form button.skip:hover { background: #f59e0b; }
+
+  .start-btn {
+    background: #2563eb; color: #fff; border: none; padding: 12px 22px; border-radius: 6px;
+    font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .start-btn:hover { background: #1d4ed8; }
+
+  .history {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-top: 18px;
+  }
+  .history h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; font-weight: 600; }
+  .history .entry { display: grid; grid-template-columns: 140px 1fr 120px 80px; gap: 10px; padding: 8px 0; border-top: 1px solid #e5e7eb; font-size: 12px; }
+  .history .entry:first-child { border-top: none; }
+  .history .ph { color: #1e40af; font-weight: 500; }
+  .history .ts { color: #9ca3af; }
+  .history .sg { font-size: 11px; padding: 2px 8px; border-radius: 999px; display: inline-block; text-transform: lowercase; }
+  .history .sg.approved { background: #d1fae5; color: #065f46; }
+  .history .sg.rejected { background: #fee2e2; color: #991b1b; }
+  .history .sg.skipped { background: #fef3c7; color: #78350f; }
+  .history .sg.none { background: #e5e7eb; color: #6b7280; }
+</style>
+{% set any_hiring = roster and (roster.entries | selectattr('status', 'equalto', 'hiring') | list | length > 0) %}
+{% set roster_drafting = state.phase == 'staffing' and state.current_artifact and state.current_artifact.job_id and not roster %}
+{% set job_waiting_for_output = state.phase != 'staffing' and state.current_artifact and state.current_artifact.signoff == 'none' and state.current_artifact.job_id and not artifact_preview %}
+{% set any_candidate_drafting = candidate_slate and (candidate_slate.candidates | selectattr('status', 'equalto', 'drafting') | list | length > 0) %}
+{% set any_subagent_candidate_drafting = roster and (
+  roster.entries | map(attribute='candidates') | map('list') | sum(start=[])
+  | selectattr('status', 'equalto', 'drafting') | list | length > 0
+) %}
+{% if any_hiring or roster_drafting or job_waiting_for_output or any_candidate_drafting or any_subagent_candidate_drafting %}<meta http-equiv="refresh" content="6">{% endif %}
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="onb-header">
+    <div>
+      <h1>{{ dept.display_name or dept.name }} onboarding</h1>
+      <p class="muted">
+        {% if phase_nav %}Phase {{ phase_nav.index }} of {{ phase_nav.total }}: <strong>{{ phase_nav.current_label }}</strong>.{% else %}Current phase: <strong>{{ state.phase|replace('_', ' ') }}</strong>.{% endif %}
+        Last transition: {{ state.last_transition_at[:19].replace('T', ' ') if state.last_transition_at else '&mdash;' }}
+      </p>
+    </div>
+    <a href="{{ url_for('onboarding_dashboard', slug=slug) }}" class="back">&larr; All departments</a>
+  </div>
+
+  {% if job_stalled %}
+  <div style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:10px;padding:14px 18px;margin-bottom:14px;">
+    <div style="font-weight:600;color:#991b1b;margin-bottom:4px;">This phase's job stalled out.</div>
+    <p style="margin:4px 0 10px;font-size:13px;color:#374151;">
+      The background job that was supposed to produce <code>{{ state.current_artifact.path }}</code> {% if job_status == 'lost' %}is no longer tracked (the webapp likely restarted mid-job){% else %}ended in error{% endif %}. No output file was written. Click retry to drop the stuck artifact and re-dispatch the phase from a clean slate.
+    </p>
+    <form method="POST" action="{{ url_for('onboarding_retry_phase', slug=slug, dept=dept.name) }}">
+      <button type="submit" style="background:#dc2626;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Retry this phase &rarr;</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="phase-track">
+    {% set phase_info = [
+      ('scope_calibration', '1', 'Arrival'),
+      ('domain_research', '2', 'Research'),
+      ('founder_interview', '3', 'Interview'),
+      ('kb_ingestion', '4', 'KB ingest'),
+      ('integrations', '5', 'Integrate'),
+      ('charter', '6', 'Charter'),
+      ('staffing', '7', 'Staffing'),
+    ] %}
+    {% for phase_id, n, label in phase_info %}
+      {% set is_active = state.phase == phase_id %}
+      {% set is_done = phase_id in state.completed_phases %}
+      {% set is_skipped = phase_id in state.skipped_phases %}
+      <div class="phase-step {% if is_active %}active{% elif is_done %}done{% elif is_skipped %}skipped{% endif %}">
+        <div class="n">Phase {{ n }}</div>
+        <div class="t">{{ label }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# --- PENDING (Arrival) --- #}
+  {% if state.phase == 'pending' %}
+  <div class="phase-card in-progress">
+    <h2>Phase 1 &mdash; Arrival</h2>
+    <p>Every manager arrives with a <strong>locked primary expertise</strong> (their specialty x this company's industry) and a <strong>serendipitous secondary background</strong>, a field or tradition they bring with them that you did not pick. The value is in what shows up that you didn't think to ask for.</p>
+    <p>Clicking below dispatches <strong>three candidate managers in parallel</strong>, each with independently sampled personality seeds and a distinct secondary background. You read all three arrival notes, chat with any of them to probe further, and select your favorite. The other two get archived.</p>
+    <p>Output: <code>{{ dept.name }}/skill-scope.md</code> for the candidate you pick. This is the hire moment, not a scoping exercise: department scope gets settled later, when all managers coordinate together.</p>
+    <form method="POST" action="{{ url_for('onboarding_start_scope_calibration', slug=slug, dept=dept.name) }}">
+      <button type="submit" class="start-btn">Run 3 candidate hires &rarr;</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {# --- SCOPE_CALIBRATION --- #}
+  {% if state.phase == 'scope_calibration' %}
+    {% set art = state.current_artifact %}
+    {% set is_thread = art and art.path and art.path.startswith('conversations/') %}
+    {% set is_scope_md = art and art.path.endswith('skill-scope.md') %}
+    {% set is_slate = art and art.path.endswith('candidates.json') %}
+
+    {% if not art %}
+    <div class="phase-card in-progress">
+      <h2>Phase 1 &mdash; Arrival</h2>
+      <p>Dispatch three candidate managers in parallel. Each will write its own arrival note with independently sampled personality seeds and secondary background. You review all three, pick your favorite, and the other two get archived.</p>
+      <form method="POST" action="{{ url_for('onboarding_start_scope_calibration', slug=slug, dept=dept.name) }}">
+        <button type="submit" class="start-btn">Run 3 candidate hires &rarr;</button>
+      </form>
+    </div>
+
+    {% elif is_slate and candidate_slate %}
+    <div class="phase-card in-progress">
+      <h2>Phase 1 &mdash; Arrival ({{ candidate_slate.candidates|length }} candidates)</h2>
+      <p style="margin-bottom:14px;">Three managers have been dispatched, each with independently sampled personality seeds and a distinct serendipitous secondary. Click through each arrival note below. Chat with any candidate to probe their background. Select the one you want to hire. The other two will be archived.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:8px;">
+        {% for c in candidate_slate.candidates %}
+        {% set preview = candidate_previews.get(c.candidate_id, '') %}
+        {% set thread_id = c.thread_path.split('/')[-1].replace('.json', '') %}
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;
+          {% if c.status == 'selected' %}border-left:4px solid #16a34a;{% elif c.status == 'discarded' %}opacity:0.55;border-left:4px solid #9ca3af;{% elif c.status == 'ready' %}border-left:4px solid #2563eb;{% else %}border-left:4px solid #fbbf24;{% endif %}">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+            <div style="font-weight:600;font-size:14px;color:#111;">{{ c.label }}</div>
+            <span style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;
+              {% if c.status == 'selected' %}color:#065f46;{% elif c.status == 'discarded' %}color:#6b7280;{% elif c.status == 'ready' %}color:#1e40af;{% else %}color:#78350f;{% endif %}">
+              {% if c.status == 'drafting' %}writing arrival note{% else %}{{ c.status }}{% endif %}
+            </span>
+          </div>
+
+          {% if preview %}
+          <div style="font-size:12px;color:#334155;line-height:1.5;white-space:pre-wrap;max-height:260px;overflow-y:auto;padding:10px 12px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;font-family:inherit;">{{ preview }}{% if preview|length >= 1400 %}&hellip;{% endif %}</div>
+          {% elif c.status == 'drafting' %}
+          <div style="font-size:12px;color:#6b7280;padding:18px 4px;text-align:center;font-style:italic;">
+            Waiting for arrival note{% if c.job_id %} &middot; <a href="{{ url_for('job_detail', slug=slug, job_id=c.job_id) }}">job {{ c.job_id[:8] }}</a>{% endif %}&hellip;
+          </div>
+          {% else %}
+          <div style="font-size:12px;color:#6b7280;padding:12px 4px;">No arrival note on file.</div>
+          {% endif %}
+
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;">
+            {% if thread_id %}
+            <a href="{{ url_for('chat_detail', slug=slug, thread_id=thread_id) }}"
+               style="background:#6b7280;color:#fff;padding:5px 10px;border-radius:5px;font-size:11px;font-weight:500;text-decoration:none;">
+              Open full note / chat &rarr;
+            </a>
+            {% endif %}
+            {% if c.status == 'ready' %}
+            <form method="POST" action="{{ url_for('onboarding_select_candidate', slug=slug, dept=dept.name, candidate_id=c.candidate_id) }}" style="display:inline;" onsubmit="return confirm('Select {{ c.label }}? The other two candidates will be archived and {{ c.label }} will be synthesized into skill-scope.md.');">
+              <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:11px;font-weight:500;cursor:pointer;">Select this hire &rarr;</button>
+            </form>
+            {% elif c.status == 'selected' %}
+            <span style="font-size:11px;color:#065f46;font-weight:600;padding:5px 10px;">selected</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+        <form method="POST" action="{{ url_for('onboarding_rerun_scope_calibration', slug=slug, dept=dept.name) }}" onsubmit="return confirm('Re-roll all 3 candidates? The current slate will be discarded and three fresh hires dispatched.');">
+          <button type="submit" style="background:#f59e0b;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;">Re-roll all 3 &rarr;</button>
+        </form>
+        <span class="muted small" style="font-size:11px;color:#6b7280;">Not seeing anyone you want to hire? Re-roll the whole slate.</span>
+      </div>
+    </div>
+
+    {% elif is_thread %}
+    <div class="phase-card in-progress">
+      <h2>Phase 1 &mdash; Arrival (in progress)</h2>
+      <div class="status">arrival note written &middot; <a href="{{ url_for('view_artifact', slug=slug, path=art.path) }}">thread file</a></div>
+      <p>The manager has introduced themselves. Read the arrival note, then lock the hire in by synthesizing <code>skill-scope.md</code>. If you want to probe their background or ask about their serendipitous secondary before deciding, open the chat. This is about getting a feel for the person, not about scoping the work: department scope gets settled later, when all managers coordinate.</p>
+      {% set thread_id = art.path.split('/')[-1].replace('.json', '') %}
+      <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+        <a href="{{ url_for('chat_detail', slug=slug, thread_id=thread_id) }}" class="start-btn" style="text-decoration:none;display:inline-block;background:#6b7280;" title="Chat with the hire to probe their background before you decide">Meet the hire &rarr;</a>
+        <form method="POST" action="{{ url_for('onboarding_finish_scope_calibration', slug=slug, dept=dept.name) }}" style="display:inline;">
+          <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Accept hire &amp; synthesize &rarr;</button>
+        </form>
+        <form method="POST" action="{{ url_for('onboarding_rerun_scope_calibration', slug=slug, dept=dept.name) }}" style="display:inline;" onsubmit="return confirm('Re-roll the hire with a different serendipitous secondary? The current letter will be preserved in history.');">
+          <button type="submit" style="background:#f59e0b;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Re-roll &rarr;</button>
+        </form>
+      </div>
+    </div>
+
+    {% elif is_scope_md and not artifact_preview %}
+    <div class="phase-card in-progress">
+      <h2>Phase 1 &mdash; Arrival (synthesizing)</h2>
+      <div class="status">writing <code>{{ art.path }}</code>{% if art.job_id %} &middot; job <a href="{{ url_for('job_detail', slug=slug, job_id=art.job_id) }}">{{ art.job_id }}</a>{% endif %}</div>
+      <p>The manager is synthesizing their arrival note into <code>skill-scope.md</code>. This usually takes 10 to 25 seconds. The page auto-refreshes until the file lands, then you'll be able to review and sign off.</p>
+    </div>
+
+    {% elif is_scope_md %}
+    <div class="phase-card pending-signoff">
+      <h2>Phase 1 &mdash; Arrival (awaiting sign-off)</h2>
+      <div class="status">skill-scope synthesized &middot; {{ art.path }}</div>
+      <p>Review the hire's background. If the secondary feels like a productive serendipitous adjacency, approve. If it's too safe or mismatched, re-roll.</p>
+      {% if artifact_preview %}
+      <div class="artifact-preview">{{ artifact_preview }}{% if artifact_preview|length >= 3000 %}
+
+…[truncated]…{% endif %}</div>
+      {% endif %}
+      <p style="font-size:12px;"><a href="{{ url_for('view_artifact', slug=slug, path=artifact_full_path) }}">Open full skill-scope →</a></p>
+
+      <form class="signoff-form" method="POST" action="{{ url_for('onboarding_signoff', slug=slug, dept=dept.name) }}">
+        <div class="label">Rating</div>
+        <div class="rating-row">
+          {% for v in [-2, -1, 0, 1, 2] %}
+          <input type="radio" name="rating" id="r-{{ v }}" value="{{ v }}"/>
+          <label for="r-{{ v }}">{{ '{0:+d}'.format(v) }}</label>
+          {% endfor %}
+        </div>
+        <div class="label">Notes</div>
+        <textarea name="notes" placeholder="Does this hire's background feel like a useful adjacency? Does the secondary suggest productive cross-pollination, or does it feel forced?"></textarea>
+        <div class="actions">
+          <button type="submit" class="approve" name="status" value="approved">Accept hire & advance →</button>
+          <button type="submit" class="reject" name="status" value="rejected">Reject (re-roll)</button>
+          <button type="submit" class="skip" name="status" value="skipped">Skip phase</button>
+        </div>
+      </form>
+    </div>
+
+    {% else %}
+    <div class="phase-card in-progress">
+      <h2>Phase 1 — The hire</h2>
+      <p>Artifact path: <code>{{ art.path }}</code></p>
+      <form method="POST" action="{{ url_for('onboarding_finish_scope_calibration', slug=slug, dept=dept.name) }}">
+        <button type="submit" class="start-btn">Synthesize now →</button>
+      </form>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  {# --- DOMAIN_RESEARCH --- #}
+  {% if state.phase == 'domain_research' %}
+  {% set art = state.current_artifact %}
+  {% if not art %}
+  <div class="phase-card in-progress">
+    <h2>Phase 2 — Domain research</h2>
+    <p>The hire is locked in. Next the manager researches <strong>both</strong> its primary expertise (<code>marketing × wine/beverage</code>) and the serendipitous secondary it declared in the arrival note. Expect 2–5 minutes of API time.</p>
+    <p>Output: <code>{{ dept.name }}/domain-brief.md</code>.</p>
+    <form method="POST" action="{{ url_for('onboarding_start_domain_research', slug=slug, dept=dept.name) }}">
+      <button type="submit" class="start-btn">Start domain research →</button>
+    </form>
+  </div>
+  {% elif art and art.signoff == 'none' and art.job_id and not artifact_preview %}
+  <div class="phase-card in-progress">
+    <h2>Phase 2 — Domain research (running)</h2>
+    <div class="status">in progress · job <a href="{{ url_for('job_detail', slug=slug, job_id=art.job_id) }}">{{ art.job_id }}</a></div>
+    <p>Dispatched with the calibrated <code>skill-scope.md</code> as context. Page auto-refreshes every 6s.</p>
+  </div>
+  {% elif art and art.path %}
+  <div class="phase-card pending-signoff">
+    <h2>Phase 2 — Domain research (awaiting sign-off)</h2>
+    <div class="status">ready for review · {{ art.path }}</div>
+    <p>The manager has written its domain brief. Review it, then approve / reject / skip.</p>
+    {% if artifact_preview %}
+    <div class="artifact-preview">{{ artifact_preview }}{% if artifact_preview|length >= 3000 %}
+
+…[truncated — open full file to continue reading]…{% endif %}</div>
+    {% endif %}
+    <p style="font-size:12px;"><a href="{{ url_for('view_artifact', slug=slug, path=artifact_full_path) }}">Open full brief →</a> · <a href="{{ url_for('job_detail', slug=slug, job_id=art.job_id) }}">Job log</a></p>
+
+    <form class="signoff-form" method="POST" action="{{ url_for('onboarding_signoff', slug=slug, dept=dept.name) }}">
+      <div class="label">Rating (-2 bad → +2 exemplary)</div>
+      <div class="rating-row">
+        {% for v in [-2, -1, 0, 1, 2] %}
+        <input type="radio" name="rating" id="r-{{ v }}" value="{{ v }}"/>
+        <label for="r-{{ v }}">{{ '{0:+d}'.format(v) }}</label>
+        {% endfor %}
+      </div>
+      <div class="label">Notes (optional)</div>
+      <textarea name="notes" placeholder="What's right or wrong about this brief? Gets stored on the phase artifact."></textarea>
+      <div class="actions">
+        <button type="submit" class="approve" name="status" value="approved">Approve & advance →</button>
+        <button type="submit" class="reject" name="status" value="rejected">Reject (rerun)</button>
+        <button type="submit" class="skip" name="status" value="skipped">Skip phase</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# --- PHASE 2: Founder interview --- #}
+  {% if state.phase == 'founder_interview' %}
+    {% set art = state.current_artifact %}
+    {% set is_thread = art and art.path and art.path.startswith('conversations/') %}
+    {% set is_brief = art and art.path.endswith('founder-brief.md') %}
+
+    {% if not art %}
+    {# No interview started yet — kick off #}
+    <div class="phase-card in-progress">
+      <h2>Phase 3 — Founder interview</h2>
+      <p>The manager has its domain brief. Now it needs to interview you — specialty-specific questions drawn from the "Key questions" section of that brief. <strong>The interview happens as a conversation.</strong> One question at a time. You reply at your own pace. Closes with a synthesized <code>founder-brief.md</code>.</p>
+      <form method="POST" action="{{ url_for('onboarding_start_interview', slug=slug, dept=dept.name) }}">
+        <button type="submit" class="start-btn">Start interview →</button>
+      </form>
+    </div>
+
+    {% elif is_thread %}
+    {# Interview in progress — link to the chat #}
+    <div class="phase-card in-progress">
+      <h2>Phase 3 — Founder interview (in progress)</h2>
+      <div class="status">conversation open · <a href="{{ url_for('view_artifact', slug=slug, path=art.path) }}">thread file</a></div>
+      <p>The interview is ongoing. When you're done answering questions, come back here and synthesize — the manager will turn the transcript into a working document.</p>
+      {% set thread_id = art.path.split('/')[-1].replace('.json', '') %}
+      <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
+        <a href="{{ url_for('chat_detail', slug=slug, thread_id=thread_id) }}" class="start-btn" style="text-decoration:none;display:inline-block;">Open conversation →</a>
+        <form method="POST" action="{{ url_for('onboarding_finish_interview', slug=slug, dept=dept.name) }}" style="display:inline;">
+          <button type="submit" style="background:#f59e0b;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Finish & synthesize →</button>
+        </form>
+      </div>
+    </div>
+
+    {% elif is_brief %}
+    {# Synthesis complete — awaiting sign-off #}
+    <div class="phase-card pending-signoff">
+      <h2>Phase 3 — Founder interview (awaiting sign-off)</h2>
+      <div class="status">brief synthesized · {{ art.path }}</div>
+      <p>The manager has synthesized your interview into a founder brief. Review it, then approve / reject / skip.</p>
+      {% if artifact_preview %}
+      <div class="artifact-preview">{{ artifact_preview }}{% if artifact_preview|length >= 3000 %}
+
+…[truncated]…{% endif %}</div>
+      {% endif %}
+      <p style="font-size:12px;"><a href="{{ url_for('view_artifact', slug=slug, path=artifact_full_path) }}">Open full brief →</a></p>
+
+      <form class="signoff-form" method="POST" action="{{ url_for('onboarding_signoff', slug=slug, dept=dept.name) }}">
+        <div class="label">Rating</div>
+        <div class="rating-row">
+          {% for v in [-2, -1, 0, 1, 2] %}
+          <input type="radio" name="rating" id="r-{{ v }}" value="{{ v }}"/>
+          <label for="r-{{ v }}">{{ '{0:+d}'.format(v) }}</label>
+          {% endfor %}
+        </div>
+        <div class="label">Notes</div>
+        <textarea name="notes" placeholder="Did the brief capture what you actually said? Anything missing?"></textarea>
+        <div class="actions">
+          <button type="submit" class="approve" name="status" value="approved">Approve & advance →</button>
+          <button type="submit" class="reject" name="status" value="rejected">Reject (re-interview)</button>
+          <button type="submit" class="skip" name="status" value="skipped">Skip phase</button>
+        </div>
+      </form>
+    </div>
+
+    {% else %}
+    <div class="phase-card in-progress">
+      <h2>Phase 3 — Founder interview</h2>
+      <p>Artifact path: <code>{{ art.path }}</code></p>
+      <form method="POST" action="{{ url_for('onboarding_finish_interview', slug=slug, dept=dept.name) }}">
+        <button type="submit" class="start-btn">Synthesize now →</button>
+      </form>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  {# --- Later phases — stubbed scaffolding --- #}
+  {% if state.phase in ['kb_ingestion', 'integrations', 'charter'] %}
+  <div class="phase-card in-progress">
+    <h2>
+      {% if state.phase == 'kb_ingestion' %}Phase 4 — KB ingestion{% endif %}
+      {% if state.phase == 'integrations' %}Phase 5 — Integrations{% endif %}
+      {% if state.phase == 'charter' %}Phase 6 — Charter{% endif %}
+    </h2>
+    <div class="status">scaffolded, not yet implemented</div>
+    <p>
+      {% if state.phase == 'kb_ingestion' %}
+      Next build: multimodal intake. Drop text / PDFs / images into <code>{{ dept.name }}/inbox/</code>; the department consumes whatever's relevant. Text → KB chunks, images → brand-db, PDFs → extracted. Video transcription TBD.
+      {% elif state.phase == 'integrations' %}
+      Next build: external-system config specific to this department. {% if dept.name == 'finance' %}Confirmed: <strong>Mercury + QuickBooks</strong> are the primary stack for finance integrations.{% endif %} {% if dept.name == 'editorial' %}Note: newsletter infrastructure doesn't exist yet — editorial will help design it during Phase 5 charter.{% endif %}
+      {% elif state.phase == 'charter' %}
+      Next build: manager produces a 1-page charter (mandate, first-month priorities, what it will NOT do, cross-dept asks). You sign off to complete the department.
+      {% endif %}
+    </p>
+    <form method="POST" action="{{ url_for('onboarding_signoff', slug=slug, dept=dept.name) }}" style="margin-top:10px;">
+      <button type="submit" class="skip" name="status" value="skipped">Skip this phase for now →</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {# --- PHASE 7: Staffing --- #}
+  {% if state.phase == 'staffing' %}
+    {% set art = state.current_artifact %}
+    {% set job_running = art and art.job_id and art.signoff == 'none' and not roster %}
+
+    {% if not art or (not roster and not job_running) %}
+    <div class="phase-card in-progress">
+      <h2>Phase 7 &mdash; Staffing</h2>
+      <p>The manager now drafts the department's roster of sub-agents from scratch. Each role is locked to its primary duty. Each hire declares its own serendipitous secondary when it arrives, adjacent to the department's existing secondary web and never a duplicate.</p>
+      <p>This run uses the charter, founder brief, and skill-scope you've already approved. Takes about 1 minute.</p>
+      <form method="POST" action="{{ url_for('onboarding_start_staffing', slug=slug, dept=dept.name) }}">
+        <button type="submit" class="start-btn">Draft roster &rarr;</button>
+      </form>
+    </div>
+    {% elif job_running %}
+    <div class="phase-card in-progress">
+      <h2>Phase 7 &mdash; Staffing (drafting roster)</h2>
+      <div class="status">job <a href="{{ url_for('job_detail', slug=slug, job_id=art.job_id) }}">{{ art.job_id }}</a> running</div>
+      <p>Manager is proposing the roster. Page auto-refreshes every 6s.</p>
+    </div>
+    {% else %}
+    <div class="phase-card pending-signoff">
+      <h2>Phase 7 &mdash; Staffing</h2>
+      <div class="status">roster drafted &middot; {{ roster.entries|length }} roles proposed</div>
+      {% if roster.notes %}<p><em>Manager rationale:</em> {{ roster.notes }}</p>{% endif %}
+      <p>Review each row. Approve to fire a hire, reject to discard, skip to leave the role unfilled for now. Approved hires run in parallel.</p>
+
+      <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+        <thead>
+          <tr style="background:#f3f4f6;">
+            <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb;">Role</th>
+            <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb;">Primary</th>
+            <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb;">Adjacency hint</th>
+            <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e5e7eb;">Status</th>
+            <th style="text-align:right;padding:8px 10px;border-bottom:1px solid #e5e7eb;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in roster.entries %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:10px 10px;vertical-align:top;">
+              <div style="font-weight:600;">{{ e.display_name }}</div>
+              <div style="font-size:11px;color:#6b7280;font-family:ui-monospace,monospace;">{{ e.role_slug }}</div>
+              <div style="font-size:10px;color:#78350f;margin-top:3px;">{{ e.criticality|replace('_',' ') }}</div>
+            </td>
+            <td style="padding:10px 10px;vertical-align:top;max-width:320px;">{{ e.primary_description }}</td>
+            <td style="padding:10px 10px;vertical-align:top;max-width:220px;font-size:12px;color:#374151;">{{ e.suggested_adjacency }}</td>
+            <td style="padding:10px 10px;vertical-align:top;">
+              {% if e.status == 'proposed' %}<span style="background:#e5e7eb;color:#374151;padding:2px 8px;border-radius:999px;font-size:11px;">proposed</span>
+              {% elif e.status == 'approved' %}<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:11px;">approved</span>
+              {% elif e.status == 'hiring' %}<span style="background:#fef3c7;color:#78350f;padding:2px 8px;border-radius:999px;font-size:11px;">arrival running</span>
+              {% elif e.status == 'awaiting' %}<span style="background:#fde68a;color:#78350f;padding:2px 8px;border-radius:999px;font-size:11px;">awaiting sign-off</span>
+              {% elif e.status == 'hired' %}<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:999px;font-size:11px;">hired</span>
+              {% elif e.status == 'rejected' %}<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:999px;font-size:11px;">rejected</span>
+              {% elif e.status == 'skipped' %}<span style="background:#fef3c7;color:#78350f;padding:2px 8px;border-radius:999px;font-size:11px;">skipped</span>
+              {% endif %}
+              {% if e.declared_secondary %}<div style="font-size:11px;color:#0f172a;margin-top:4px;"><strong>secondary:</strong> {{ e.declared_secondary }}</div>{% endif %}
+            </td>
+            <td style="padding:10px 10px;vertical-align:top;text-align:right;white-space:nowrap;">
+              {% if e.status == 'proposed' %}
+                <form method="POST" action="{{ url_for('onboarding_roster_approve', slug=slug, dept=dept.name, role_slug=e.role_slug) }}" style="display:inline;">
+                  <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;">Approve &amp; hire</button>
+                </form>
+                <form method="POST" action="{{ url_for('onboarding_roster_reject', slug=slug, dept=dept.name, role_slug=e.role_slug) }}" style="display:inline;">
+                  <button type="submit" style="background:#dc2626;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;">Reject</button>
+                </form>
+                <form method="POST" action="{{ url_for('onboarding_roster_skip', slug=slug, dept=dept.name, role_slug=e.role_slug) }}" style="display:inline;">
+                  <button type="submit" style="background:#fbbf24;color:#78350f;border:none;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;">Skip</button>
+                </form>
+              {% elif e.status == 'hiring' %}
+                {% set ready_count = (e.candidates | selectattr('status', 'equalto', 'ready') | list | length) %}
+                {% set total_count = e.candidates|length %}
+                <span style="font-size:12px;color:#374151;">
+                  {{ ready_count }}/{{ total_count }} candidates ready &darr;
+                </span>
+                <form method="POST" action="{{ url_for('onboarding_roster_reroll', slug=slug, dept=dept.name, role_slug=e.role_slug) }}" style="display:inline;" onsubmit="return confirm('Re-roll all 3 candidates? The current slate will be discarded and three fresh hires dispatched.');">
+                  <button type="submit" style="background:#f59e0b;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer;margin-left:6px;">Re-roll all 3</button>
+                </form>
+              {% elif e.status == 'awaiting' %}
+                {% if e.arrival_thread_path %}
+                  {% set thread_id = e.arrival_thread_path.split('/')[-1].replace('.json', '') %}
+                  <a href="{{ url_for('chat_detail', slug=slug, thread_id=thread_id) }}" style="background:#6b7280;color:#fff;padding:6px 12px;border-radius:5px;font-size:12px;text-decoration:none;">Read / chat</a>
+                {% endif %}
+                <form method="POST" action="{{ url_for('onboarding_roster_hire', slug=slug, dept=dept.name, role_slug=e.role_slug) }}" style="display:inline;">
+                  <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;">Accept hire</button>
+                </form>
+                <form method="POST" action="{{ url_for('onboarding_roster_reroll', slug=slug, dept=dept.name, role_slug=e.role_slug) }}" style="display:inline;" onsubmit="return confirm('Re-roll all 3 candidates? The selected arrival note will be archived and three fresh candidates dispatched.');">
+                  <button type="submit" style="background:#f59e0b;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:12px;cursor:pointer;">Re-roll all 3</button>
+                </form>
+              {% elif e.status == 'hired' %}
+                {% if e.skill_scope_path %}<a href="{{ url_for('view_artifact', slug=slug, path=e.skill_scope_path) }}" style="font-size:12px;">View skill-scope</a>{% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% if e.status == 'hiring' and e.candidates %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td colspan="5" style="padding:14px 10px 18px;background:#f9fafb;">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;font-weight:600;margin-bottom:10px;">
+                Pick a candidate for {{ e.display_name }}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
+                {% for c in e.candidates %}
+                {% set preview = subagent_previews.get(c.candidate_id, '') %}
+                {% set thread_id = c.thread_path.split('/')[-1].replace('.json', '') %}
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;
+                  {% if c.status == 'selected' %}border-left:4px solid #16a34a;{% elif c.status == 'discarded' %}opacity:0.55;border-left:4px solid #9ca3af;{% elif c.status == 'ready' %}border-left:4px solid #2563eb;{% else %}border-left:4px solid #fbbf24;{% endif %}">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+                    <div style="font-weight:600;font-size:13px;color:#111;">{{ c.label }}</div>
+                    <span style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;
+                      {% if c.status == 'selected' %}color:#065f46;{% elif c.status == 'discarded' %}color:#6b7280;{% elif c.status == 'ready' %}color:#1e40af;{% else %}color:#78350f;{% endif %}">
+                      {% if c.status == 'drafting' %}writing&hellip;{% else %}{{ c.status }}{% endif %}
+                    </span>
+                  </div>
+                  {% if c.declared_secondary %}<div style="font-size:11px;color:#0f172a;"><strong>secondary:</strong> {{ c.declared_secondary }}</div>{% endif %}
+                  {% if preview %}
+                  <div style="font-size:11.5px;color:#334155;line-height:1.5;white-space:pre-wrap;max-height:220px;overflow-y:auto;padding:8px 10px;background:#f9fafb;border-radius:5px;border:1px solid #e5e7eb;">{{ preview }}{% if preview|length >= 1400 %}&hellip;{% endif %}</div>
+                  {% elif c.status == 'drafting' %}
+                  <div style="font-size:11px;color:#6b7280;padding:12px 4px;text-align:center;font-style:italic;">
+                    Waiting for arrival note{% if c.job_id %} &middot; <a href="{{ url_for('job_detail', slug=slug, job_id=c.job_id) }}">{{ c.job_id[:8] }}</a>{% endif %}&hellip;
+                  </div>
+                  {% endif %}
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;">
+                    {% if thread_id %}
+                    <a href="{{ url_for('chat_detail', slug=slug, thread_id=thread_id) }}"
+                       style="background:#6b7280;color:#fff;padding:4px 8px;border-radius:5px;font-size:10.5px;font-weight:500;text-decoration:none;">
+                      Open / chat
+                    </a>
+                    {% endif %}
+                    {% if c.status == 'ready' %}
+                    <form method="POST" action="{{ url_for('onboarding_roster_select_candidate', slug=slug, dept=dept.name, role_slug=e.role_slug, candidate_id=c.candidate_id) }}" style="display:inline;" onsubmit="return confirm('Select {{ c.label }} for {{ e.display_name }}? The other two will be archived.');">
+                      <button type="submit" style="background:#16a34a;color:#fff;border:none;padding:4px 8px;border-radius:5px;font-size:10.5px;font-weight:500;cursor:pointer;">Select &rarr;</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div style="margin-top:18px;display:flex;gap:10px;align-items:center;">
+        <form method="POST" action="{{ url_for('onboarding_finish_staffing', slug=slug, dept=dept.name) }}">
+          <button type="submit" class="start-btn">Finish staffing &rarr;</button>
+        </form>
+        <span class="muted small">Every row must be hired, rejected, or skipped before staffing can close.</span>
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  {# --- COMPLETE --- #}
+  {% if state.phase == 'complete' %}
+  <div class="phase-card approved">
+    <h2>Onboarding complete</h2>
+    <p>This department has graduated all 7 phases. It's cleared to produce production work.</p>
+  </div>
+  {% endif %}
+
+  {# --- Phase navigation (back / next / all departments) --- #}
+  {% if phase_nav %}
+  <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <a href="{{ url_for('onboarding_dashboard', slug=slug) }}"
+         style="background:#fff;border:1px solid #cbd5e1;color:#334155;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;text-decoration:none;">
+        &larr; All departments
+      </a>
+      {% if phase_nav.prev %}
+      {% set prev_done = phase_nav.prev in state.completed_phases or phase_nav.prev in state.skipped_phases %}
+      {% if prev_done %}
+      <a href="{{ url_for('onboarding_dept', slug=slug, dept=dept.name) }}#phase-{{ phase_nav.prev }}"
+         title="View the phase you just came from"
+         style="background:#fff;border:1px solid #cbd5e1;color:#334155;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:500;text-decoration:none;">
+        &larr; {{ phase_nav.prev_label }} (done)
+      </a>
+      {% else %}
+      <span style="color:#9ca3af;font-size:12px;">&larr; {{ phase_nav.prev_label }} (not yet)</span>
+      {% endif %}
+      {% endif %}
+    </div>
+    <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">
+      Phase {{ phase_nav.index }} of {{ phase_nav.total }} &middot; {{ phase_nav.current_label }}
+    </div>
+    <div>
+      {% if phase_nav.next %}
+      {% set current_done = phase_nav.current in state.completed_phases or phase_nav.current in state.skipped_phases %}
+      {% if current_done %}
+      <a href="{{ url_for('onboarding_dept', slug=slug, dept=dept.name) }}"
+         style="background:#111;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;text-decoration:none;">
+        {{ phase_nav.next_label }} &rarr;
+      </a>
+      {% else %}
+      <span title="Approve the current phase to unlock"
+            style="background:#f3f4f6;color:#9ca3af;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:not-allowed;">
+        {{ phase_nav.next_label }} &rarr;
+      </span>
+      {% endif %}
+      {% else %}
+      <span style="font-size:11px;color:#6b7280;">Last phase</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Re-run controls (available once scope was ever touched) --- #}
+  {% set can_rerun_scope = ('scope_calibration' in state.completed_phases) or ('scope_calibration' in state.skipped_phases) or (state.phase != 'pending' and state.phase != 'scope_calibration') %}
+  {% if can_rerun_scope %}
+  <div style="margin-top:18px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:16px;">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#111;">Re-roll the hire</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+        Reset this department to Phase 1 and dispatch a new arrival note — the manager will arrive with a different serendipitous secondary. Previous letters stay in history as audit trail.
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('onboarding_rerun_scope_calibration', slug=slug, dept=dept.name) }}" onsubmit="return confirm('Re-roll this hire with a different secondary? Previous letters are kept in history.');">
+      <button type="submit" style="background:#1e293b;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap;">Re-roll →</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {# --- History --- #}
+  {% if state.artifacts %}
+  <div class="history">
+    <h3>Phase history ({{ state.artifacts|length }} artifacts)</h3>
+    {% for a in state.artifacts|reverse %}
+    <div class="entry">
+      <div class="ph">{{ a.phase|replace('_', ' ') }}</div>
+      <div>
+        {% if a.path %}
+          <a href="{{ url_for('view_artifact', slug=slug, path=a.path) }}">{{ a.path }}</a>
+        {% else %}—{% endif %}
+        {% if a.notes %}<br><em style="color:#6b7280;font-size:11px;">{{ a.notes }}</em>{% endif %}
+      </div>
+      <div class="ts">{{ a.created_at[:19].replace('T', ' ') }}</div>
+      <div>
+        <span class="sg {{ a.signoff }}">{{ a.signoff }}</span>
+        {% if a.rating is not none %}
+        <span style="font-size:11px;color:#6b7280;">({{ '{0:+d}'.format(a.rating) }})</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

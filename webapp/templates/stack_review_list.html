@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Stack reviews — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .sr-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 18px; }
+  .sr-header h1 { margin: 0; }
+
+  .explainer {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px 20px;
+    margin-bottom: 18px; font-size: 13px; color: #1e3a8a;
+  }
+  .explainer h2 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: #1e3a8a; }
+  .explainer p { margin: 0 0 6px; }
+
+  .run-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px;
+  }
+  .run-card.ready { border-color: #10b981; background: #f0fdf4; }
+  .run-card.not-ready { opacity: .85; }
+  .run-card .status { font-size: 12px; color: #065f46; margin-bottom: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .run-card .status.waiting { color: #9ca3af; }
+  .run-card p { margin: 0; font-size: 12px; color: #6b7280; }
+  .run-card button {
+    background: #111; color: #fff; border: none; padding: 9px 18px; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  }
+  .run-card button:hover { background: #333; }
+  .run-card button:disabled { background: #d1d5db; color: #6b7280; cursor: not-allowed; }
+
+  table.reviews { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+  table.reviews thead th {
+    background: #f9fafb; padding: 10px 12px; font-size: 11px; text-align: left;
+    color: #6b7280; text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  table.reviews td { padding: 12px; border-top: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+  table.reviews .rid { font-family: ui-monospace, monospace; font-size: 12px; color: #1e40af; }
+  table.reviews .count { background: #dbeafe; color: #1e40af; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; }
+  table.reviews .count.zero { background: #f3f4f6; color: #6b7280; }
+
+  .empty { background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 30px; text-align: center; color: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="sr-header">
+    <div>
+      <h1>Departmental stack reviews</h1>
+      <p class="muted">Board-led synthesis across all onboarding artifacts. Proposes new departments, consolidations, terminations, and orchestrator amendments — you approve individually.</p>
+    </div>
+  </div>
+
+  <div class="explainer">
+    <h2>How this works</h2>
+    <p>When every active department finishes onboarding, the Board (6 voices) reads the entire corpus — every skill-scope, every founder brief, every charter, plus your priorities and convictions — and produces a review document.</p>
+    <p>Reviews are <strong>propose-only</strong>. Each proposal (new dept / consolidation / termination / orchestrator amendment) is a separate item you can accept, reject, or defer individually. Accepting a <em>new-department</em> proposal creates a dormant dept stub AND auto-drafts the arrival note so it's ready when you navigate to the new dept's onboarding page.</p>
+  </div>
+
+  <div class="run-card {% if ready_to_run %}ready{% else %}not-ready{% endif %}">
+    <div>
+      <div class="status {% if not ready_to_run %}waiting{% endif %}">
+        {% if ready_to_run %}Ready to run{% else %}Waiting — not all departments complete{% endif %}
+      </div>
+      <p>
+        {% if ready_to_run %}
+        All active departments have completed onboarding. Running a review takes 1-3 minutes of API time (one Board meeting, 7 voices).
+        {% else %}
+        The review runs automatically once the last department signs off its charter. You can also trigger it manually — useful if you want to review the stack before every dept is fully onboarded.
+        {% endif %}
+      </p>
+    </div>
+    <form method="POST" action="{{ url_for('stack_review_run', slug=slug) }}">
+      <button type="submit">Run review now →</button>
+    </form>
+  </div>
+
+  {% if not reviews %}
+  <div class="empty">
+    <p>No stack reviews yet.</p>
+    <p><small>One will be queued automatically after all departments finish onboarding. Or run one manually above.</small></p>
+  </div>
+  {% else %}
+  <table class="reviews">
+    <thead>
+      <tr>
+        <th>Review ID</th>
+        <th>Created</th>
+        <th>Depts reviewed</th>
+        <th>Proposals</th>
+        <th>Accepted</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reviews %}
+      {% set accepted = r.proposals|selectattr('status', 'equalto', 'accepted')|list|length %}
+      <tr>
+        <td class="rid">{{ r.id }}</td>
+        <td>{{ r.created_at[:19].replace('T', ' ') }}</td>
+        <td>{{ r.corpus_summary.get('dept_count', 0) }}</td>
+        <td><span class="count {% if r.proposals|length == 0 %}zero{% endif %}">{{ r.proposals|length }}</span></td>
+        <td><span class="count {% if accepted == 0 %}zero{% endif %}">{{ accepted }}</span></td>
+        <td style="text-align:right;">
+          <a href="{{ url_for('stack_review_detail', slug=slug, review_id=r.id) }}" style="background:#111;color:#fff;padding:6px 14px;border-radius:6px;text-decoration:none;font-size:12px;">Open →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

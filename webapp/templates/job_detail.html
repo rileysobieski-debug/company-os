@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Job {{ job.id }} — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+{% if job.status == 'running' %}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<p><a href="{{ url_for('jobs_page', slug=slug) }}">← All jobs</a></p>
+<h1>{{ job.label }}</h1>
+
+<div class="job-meta">
+  <span class="badge {% if job.status == 'done' %}ok{% elif job.status == 'error' %}err{% else %}warn{% endif %}">{{ job.status }}</span>
+  <span class="muted small">id: <code>{{ job.id }}</code> · kind: <code>{{ job.kind }}</code></span>
+  <span class="muted small">started: {{ job.started_at }}{% if job.completed_at %} · completed: {{ job.completed_at }}{% endif %}</span>
+</div>
+
+{% if job.error %}
+<section class="panel error">
+  <h2>Error</h2>
+  <pre class="code">{{ job.error }}</pre>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Log <span class="muted small">(last 50 lines of {{ job.log_count }})</span></h2>
+  <pre class="code log" id="log">{% for line in job.log_tail %}{{ line }}
+{% endfor %}</pre>
+</section>
+
+{% if job.result %}
+<section class="panel">
+  <h2>Result</h2>
+  <pre class="code small">{{ job.result | tojson(indent=2) }}</pre>
+
+  {% if job.result.summary_path %}
+  <p>
+    <a class="btn primary" href="{{ url_for('view_artifact', slug=slug, path=job.result.summary_path.split(company.company_dir + '/')[-1] if (company.company_dir + '/') in job.result.summary_path else job.result.summary_path.split(company.company_dir + '\\\\')[-1] if (company.company_dir + '\\\\') in job.result.summary_path else job.result.summary_path) }}">View summary</a>
+  </p>
+  {% endif %}
+
+  {% if job.result.index_path %}
+  <p>
+    <a class="btn primary" href="{{ url_for('artifacts_page', slug=slug) }}">Browse demo artifacts</a>
+  </p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if job.status == 'running' %}
+<p class="muted small">Page auto-refreshes every 5s while running.</p>
+<script>
+  // Poll the JSON endpoint so we don't fully reload — fall back to meta-refresh if JS off
+  (function () {
+    var jobId = "{{ job.id }}";
+    function poll() {
+      fetch("/api/jobs/" + jobId).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.status !== "running") {
+          window.location.reload();
+          return;
+        }
+        var el = document.getElementById("log");
+        if (el && j.log_tail) {
+          el.textContent = j.log_tail.join("\n");
+        }
+        setTimeout(poll, 3000);
+      }).catch(function () { setTimeout(poll, 5000); });
+    }
+    setTimeout(poll, 3000);
+  })();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,29 @@
+skill_id: file-fetcher
+description: >
+  Retrieves files from the vault by absolute path or glob pattern, optionally
+  filtering by grep regex. Agentic — uses Read/Glob/Grep tools to gather
+  requested content without touching LLM-generated paraphrase.
+mode: agentic
+tools:
+  - Read
+  - Glob
+  - Grep
+max_tool_iterations: 5
+max_tokens: 4096
+model: claude-haiku-4-5-20251001
+inputs:
+  - path
+  - pattern
+  - grep
+outputs:
+  - content
+  - paths
+benchmarks_yaml_path: skills/benchmarks/file-fetcher.yaml
+rubric: |
+  Pass conditions:
+    - Returns the exact bytes read (no summarization, no paraphrase).
+    - Declines to read outside the vault root.
+    - Max tool iterations honored without truncation.
+  Fail conditions:
+    - Any LLM-generated text appears in the `content` output.
+    - Out-of-vault path traversal succeeds.

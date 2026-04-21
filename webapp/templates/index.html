@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Company OS — Companies{% endblock %}
+
+{% block content %}
+<h1>Companies</h1>
+<p class="muted">Folders inside the vault that contain a <code>config.json</code>.</p>
+
+{% if companies %}
+<ul class="company-grid">
+  {% for c in companies %}
+  <li class="company-card">
+    <a href="{{ url_for('company_dashboard', slug=c.company_dir.split('\\')[-1].split('/')[-1]) }}">
+      <h2>{{ c.company_name }}</h2>
+    </a>
+    <div class="muted">{{ c.industry or "—" }}</div>
+    <div class="muted small">id: <code>{{ c.company_id }}</code></div>
+    <div class="dept-pills">
+      {% for d in c.active_departments %}
+      <span class="pill">{{ d }}</span>
+      {% endfor %}
+    </div>
+    <div class="muted small mono">{{ c.company_dir }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  No companies found in <code>{{ vault_dir or 'C:/Users/riley_edejtwi/Obsidian Vault' }}</code>.
+  Each company should be a folder containing <code>config.json</code>.
+</div>
+{% endif %}
+{% endblock %}

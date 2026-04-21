@@ -1,0 +1,259 @@
+# Wine-beverage vertical — demo dept briefs (Phase 13.1)
+# =======================================================
+# Phase 13 rewrite: comprehensive_demo.py's hardcoded DEPT_BRIEFS dict
+# moves here so the runner is vertical-agnostic. Company-specific
+# context enters via template substitution (`{{ company.name }}`,
+# `{{ settled_convictions }}`, `{{ hard_constraints }}`).
+#
+# Supported placeholders (rendered by core.vertical_pack.render_dept_brief):
+#   {{ company.name }}                  — CompanyConfig.name
+#   {{ company.industry }}              — CompanyConfig.industry
+#   {{ settled_convictions }}           — bullet-rendered list, empty if none
+#   {{ hard_constraints }}              — bullet-rendered list, empty if none
+#   {{ priorities }}                    — numbered priority stack, empty if none
+#
+# Each brief has:
+#   title    — short human-readable tag for listings
+#   template — the full brief text with placeholders
+
+dept_briefs:
+
+  marketing:
+    title: Launch positioning memo
+    template: |
+      DEMO BRIEF: Produce a launch-positioning memo for the inaugural
+      {{ company.name }} release in the {{ company.industry }} category.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. Target customer (one paragraph — psychographic, not demographic).
+        2. Three positioning pillars that distinguish {{ company.name }}
+           from a generic play in {{ company.industry }}.
+        3. The 90-day launch arc: which channels, in what order, why.
+        4. One worked example of brand voice: a 60-word product page
+           intro for the inaugural release. Demonstrate the voice —
+           don't describe it.
+        5. The single decision needed to unblock the next 30 days.
+
+      Use your specialists. Show your reasoning. Reference specific
+      {{ company.name }} context — generic answers will be rejected.
+
+  finance:
+    title: 12-month cash discipline plan
+    template: |
+      DEMO BRIEF: Build a 12-month cash-discipline plan for the path to
+      first commercial sale at {{ company.name }}.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. Three operating-model scenarios with rough capital implications
+           for each. Pick which 1-2 the financial modeler should model
+           in depth.
+        2. The minimum-viable cash budget for the next 12 months under
+           the leading scenario, with line items grouped (regulatory,
+           production, equipment, brand/web, working capital).
+        3. The funding stack to cover that budget: debt instruments,
+           grants, contingencies.
+        4. Compliance gate status — which regulatory items are blockers
+           for which budget lines.
+        5. The single biggest financial risk and the early-warning
+           metric to watch.
+
+      Use your specialists. Show your reasoning.
+
+  operations:
+    title: Regulatory + operational critical path
+    template: |
+      DEMO BRIEF: Map the operational + regulatory critical path from
+      today to {{ company.name }}'s first shippable product.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. Candidate operating models — for each: regulatory timeline,
+           capital intensity, control over production, primary risk.
+        2. Recommended sequencing (first, second, third) with explicit
+           dependencies between steps.
+        3. Sourcing / supply decisions with implications of each path.
+        4. Best-guess timeline (in months from today) to first product
+           under the recommended sequence — with held assumptions.
+        5. The single operational blocker most likely to slip the
+           timeline, and what would mitigate it.
+
+      Use your specialists. Be specific to {{ company.industry }}
+      regulatory realities — generic startup advice will be rejected.
+
+  product-design:
+    title: Inaugural product format + visual identity
+    template: |
+      DEMO BRIEF: Propose the product format and visual identity for
+      {{ company.name }}'s inaugural release.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. Format recommendation: specs + case size, with rationale tied
+           to positioning AND capital intensity.
+        2. Label direction: typography, palette, imagery posture. 2-3
+           distinct directions where there is a real choice; recommend
+           one.
+        3. Brand mark / wordmark direction — anchored on the existing
+           name.
+        4. Packaging materials story — how stewardship / craft shows up
+           in physical choices, not just copy.
+        5. The single design decision needed next to unlock production.
+
+      Use your specialists. Tie every choice back to brand or capital.
+
+  community:
+    title: Owned-audience strategy
+    template: |
+      DEMO BRIEF: Define the audience-building strategy for
+      {{ company.name }}.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. The 'first 1000 true fans' definition — who they are, where
+           they already gather, what would draw them specifically.
+        2. Owned-channel strategy: which platforms and the 90-day
+           content arc.
+        3. Narrative balance — how any dual/split story lives together
+           honestly without confusing the audience.
+        4. Pre-launch cadence: what should be published before there is
+           anything to buy, to earn trust by launch time.
+        5. The single community decision needed this month.
+
+      Use your specialists. Be specific. Give example post titles or
+      topics.
+
+  editorial:
+    title: Demo brand-voice content
+    template: |
+      DEMO BRIEF: Produce demo editorial content that proves
+      {{ company.name }}'s brand voice is understood. This is a writing
+      exercise, not a strategy memo.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. A 250-word brand essay embodying the voice. Publishable.
+        2. A 100-word product-page intro for the inaugural release
+           (focus on voice not product specs).
+        3. A short 'About' bio for the founder — 150 words.
+        4. A list of 5 essay/post titles proposed for the first 90
+           days of editorial.
+        5. Tone-of-voice rules for any future writer (or AI agent)
+           working on {{ company.name }} copy.
+
+      Write the actual content. Do not describe the content.
+
+  data:
+    title: First-12-month metrics + infrastructure
+    template: |
+      DEMO BRIEF: Define the metrics and data infrastructure
+      {{ company.name }} needs to track in the first 12 months.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. The 5-7 metrics that matter MOST in the first 12 months —
+           split into operational, brand, and financial.
+        2. The data infrastructure to capture them (actual tools).
+        3. Reporting cadence — weekly vs monthly vs quarterly, and
+           where the dashboard lives.
+        4. Vanity metrics to AVOID — things that look productive but
+           don't predict survival or growth.
+        5. The single data investment to make first.
+
+      Use your specialists. Avoid heavy-infrastructure answers —
+      {{ company.name }} is constraint-aware.
+
+  ai-workflow:
+    title: First automations for this stage
+    template: |
+      DEMO BRIEF: Identify the operational workflows
+      {{ company.name }} should automate FIRST, and propose the
+      implementation path.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your synthesis:
+        1. Top 5 workflows to automate, ranked by founder-time-saved
+           per dollar spent.
+        2. For the #1 priority: the actual implementation plan (tools,
+           data flow, who owns it inside the Company OS).
+        3. Workflows that MUST stay manual (founder-judgment, high-risk,
+           compliance-touching) — named explicitly.
+        4. How Company OS itself could be extended to handle 1-2 of
+           the workflows directly.
+        5. The single automation to ship next month.
+
+      Use your specialists. Be specific to the {{ company.industry }}
+      context.
+
+  ai-architecture:
+    title: Systems view of Company OS running this company
+    template: |
+      DEMO BRIEF: Produce an architectural memo on the Company OS
+      itself as it currently runs {{ company.name }} — read it as a
+      system, not a feature list.
+
+      Constraints to honor:
+      {{ settled_convictions }}
+      {{ hard_constraints }}
+
+      Deliverables in your memo:
+        1. System map — agents/components as nodes, information flows
+           as edges, marking explicit (in code/prompts) vs implicit
+           (assumed) edges.
+        2. Coherence reading — is the system pointed at one
+           {{ company.name }}, or do the orchestrator / managers /
+           board hold subtly different versions?
+        3. Top 3 coupling risks — where would changing one thing
+           silently break another?
+        4. Top 3 leverage points — smallest changes that would most
+           improve the whole system.
+        5. Top 3 drift watches — things working now that won't keep
+           working if left alone.
+        6. ONE recommended structural change with second-order effects
+           traced one-to-two steps downstream.
+
+      Use your systems-thinking specialist. Cite specific file paths
+      from company-os/ and from this vault. Generic best-practices
+      will be rejected — this memo is about THIS system running THIS
+      company.
+
+default_brief:
+  title: Generic dept demonstration
+  template: |
+    DEMO BRIEF: Demonstrate your department's role and value to
+    {{ company.name }} ({{ company.industry }}) in the context of the
+    constraints below.
+
+    Constraints to honor:
+    {{ settled_convictions }}
+    {{ hard_constraints }}
+
+    Produce a real artifact (not a meta-description of what your
+    department would do): a memo, plan, framework, or analysis specific
+    to {{ company.name }}'s current priorities. Use your specialists.
+    Show role understanding by what you produce, not by claiming it.

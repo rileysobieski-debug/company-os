@@ -1,0 +1,125 @@
+# Wine-beverage canonical scope matrix — Phase 9.3 / plan §6
+# ============================================================
+# 9 departments (matches core.onboarding.dept_selection.VERTICAL_DEPARTMENTS).
+#
+# OWNS : topics this dept is responsible for and can produce output about
+# NEVER: topics this dept must NOT produce (self-disclaimer — the NEVER
+#        topics are expected to be owned by another dept)
+#
+# Constraints enforced by find_overlaps():
+#   * A topic appears in at most ONE dept's OWNS (no cross-dept OWNS overlap).
+#   * No dept lists the same topic in both OWNS and NEVER (self-contradiction).
+#
+# Cross-dept OWNS/NEVER pairs ARE expected: dept B's NEVER list is how it
+# disclaims dept A's territory — that is intentional scope discipline,
+# not a matrix error.
+
+departments:
+
+  marketing:
+    owns:
+      - brand positioning
+      - brand voice
+      - audience-building
+      - launch messaging
+      - campaign planning
+      - paid media strategy
+      - customer acquisition
+    never:
+      - TTB compliance
+      - supplier logistics
+      - regulatory filings
+      - financial modeling
+
+  finance:
+    owns:
+      - budget
+      - pricing
+      - cash flow
+      - capital planning
+      - revenue forecast
+      - cost tracking
+      - investor relations
+    never:
+      - brand voice
+      - creative direction
+      - regulatory filings
+
+  operations:
+    owns:
+      - TTB compliance
+      - supplier logistics
+      - production scheduling
+      - inventory management
+      - licensing
+      - regulatory filings
+      - vendor management
+    never:
+      - brand voice
+      - positioning copy
+      - advertising creative
+
+  product-design:
+    owns:
+      - label design
+      - packaging design
+      - bottle specification
+      - product prototype
+      - sensory profile
+    never:
+      - regulatory filings
+      - revenue forecast
+
+  community:
+    owns:
+      - buyer list
+      - pre-order list
+      - customer email list
+      - event coordination
+      - member engagement
+    never:
+      - regulatory filings
+      - supplier logistics
+
+  editorial:
+    owns:
+      - newsletter content
+      - articles
+      - long-form copy
+      - content calendar
+      - storytelling
+    never:
+      - regulatory filings
+      - production scheduling
+      - revenue forecast
+
+  data:
+    owns:
+      - analytics
+      - metrics
+      - reporting
+      - dashboards
+      - KPI tracking
+    never:
+      - brand voice
+      - regulatory filings
+
+  ai-workflow:
+    owns:
+      - workflow automation
+      - pipeline orchestration
+      - task routing
+      - process automation
+    never:
+      - brand voice
+      - regulatory filings
+
+  ai-architecture:
+    owns:
+      - system architecture
+      - infrastructure design
+      - platform scaling
+      - data model design
+    never:
+      - brand voice
+      - creative direction

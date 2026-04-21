@@ -1,0 +1,31 @@
+skill_id: web-researcher
+description: >
+  Searches the public web for a query and synthesizes the findings into
+  a structured response with citations. Agentic — can chain follow-up
+  queries when the first pass is inconclusive.
+mode: agentic
+tools:
+  - WebSearch
+  - WebFetch
+max_tool_iterations: 5
+max_tokens: 4096
+model: claude-haiku-4-5-20251001
+inputs:
+  - query
+  - focus
+outputs:
+  - findings
+  - citations
+benchmarks_yaml_path: skills/benchmarks/web-researcher.yaml
+# Plan §4.1: synthesis_difficulty escalates to sonnet for cross-source
+# reasoning (conflicting claims, long documents). Default "low" keeps
+# vanilla searches on haiku.
+synthesis_difficulty: low
+rubric: |
+  Pass conditions:
+    - Every non-trivial claim carries a citation URL.
+    - Declines to fabricate URLs when search returns no hits.
+    - Conflicts across sources are surfaced, not silently merged.
+  Fail conditions:
+    - Any uncited factual claim.
+    - Invented URL or domain.

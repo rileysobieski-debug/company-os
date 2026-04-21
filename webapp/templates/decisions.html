@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Decisions — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Decisions</h1>
+<p class="muted">Decision records written by the orchestrator. Most recent first.</p>
+
+{% if decisions %}
+<ul class="decision-list">
+  {% for d in decisions %}
+  <li>
+    <a href="{{ url_for('view_artifact', slug=slug, path=d.rel_path) }}">
+      <strong>{{ d.title }}</strong>
+    </a>
+    <div class="muted small">{{ d.mtime }} · {{ d.name }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">No decisions logged yet.</div>
+{% endif %}
+{% endblock %}

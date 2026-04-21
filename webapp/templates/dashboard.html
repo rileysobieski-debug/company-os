@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}{{ company.name }} — Dashboard{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;">
+  <div>
+    <h1 style="margin:0;">{{ company.name }}</h1>
+    <p class="muted" style="margin:4px 0 0;">{{ company.industry }}{% if company.priorities %} &middot; top priority: <em>{{ company.priorities[0] if company.priorities else '&mdash;' }}</em>{% endif %}</p>
+  </div>
+  <a href="{{ url_for('company_edit', slug=slug) }}"
+     title="Edit company name, industry, priorities, convictions, hard constraints, delegation thresholds, and context markdown files"
+     style="background:#111;color:#fff;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:500;text-decoration:none;white-space:nowrap;">
+    Edit context &rarr;
+  </a>
+</div>
+
+{% if spend %}
+<section class="spend-clock" style="display:flex;gap:14px;margin:14px 0 18px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:160px;background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px 18px;">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:600;">Today's spend</div>
+    <div style="font-size:26px;font-weight:600;margin-top:4px;font-family:ui-monospace,Consolas,Menlo,monospace;">{{ spend.today_cost }}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:3px;">{{ spend.today_calls }} call{{ '' if spend.today_calls == 1 else 's' }}</div>
+  </div>
+  <div style="flex:1;min-width:160px;background:#1e293b;color:#e2e8f0;border-radius:10px;padding:14px 18px;">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:600;">Month to date</div>
+    <div style="font-size:26px;font-weight:600;margin-top:4px;font-family:ui-monospace,Consolas,Menlo,monospace;">{{ spend.month_cost }}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:3px;">{{ spend.month_calls }} call{{ '' if spend.month_calls == 1 else 's' }}</div>
+  </div>
+  <div style="flex:1;min-width:160px;background:#f8fafc;border:1px solid #e2e8f0;color:#334155;border-radius:10px;padding:14px 18px;">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:600;">Lifetime</div>
+    <div style="font-size:22px;font-weight:600;margin-top:4px;font-family:ui-monospace,Consolas,Menlo,monospace;color:#0f172a;">{{ spend.lifetime_cost }}</div>
+    <div style="font-size:11px;color:#64748b;margin-top:3px;">
+      {{ spend.lifetime_calls }} call{{ '' if spend.lifetime_calls == 1 else 's' }}{% if spend.last_call_at %} &middot; last {{ spend.last_call_at[:19].replace('T', ' ') }} UTC{% endif %}
+    </div>
+  </div>
+  <div style="flex:2;min-width:260px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px;">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:600;">Top cost tags today</div>
+    {% if spend.top_tags_today %}
+    <table style="width:100%;margin-top:6px;font-size:12px;">
+      <tbody>
+        {% for row in spend.top_tags_today %}
+        <tr>
+          <td style="padding:3px 4px;font-family:ui-monospace,Consolas,Menlo,monospace;color:#334155;">{{ row.tag }}</td>
+          <td style="padding:3px 4px;text-align:right;color:#64748b;">{{ row.calls }}</td>
+          <td style="padding:3px 4px;text-align:right;font-weight:600;color:#0f172a;">{{ row.cost }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="font-size:12px;color:#94a3b8;margin-top:6px;">
+      {% if spend.log_exists %}No API calls yet today.{% else %}Cost log empty. First API call will populate.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+<p class="muted small" style="margin:-8px 0 18px;font-size:11px;">Pricing is model-specific and approximate (tune in <code>core/cost_summary.py</code>). Numbers refresh on page load.</p>
+{% endif %}
+
+<section class="grid-2">
+  <div class="panel">
+    <h2>System status</h2>
+    <table class="kv">
+      <tr><td>Orchestrator charter</td><td>{{ "✓" if company.has_orchestrator_charter else "—" }}</td></tr>
+      <tr><td>Board onboarding</td><td>{{ "✓" if company.has_board_onboarding else "—" }}</td></tr>
+      <tr><td>Demo artifacts</td><td>{{ "✓" if company.demo_artifacts_exist else "—" }}</td></tr>
+      <tr><td>Active departments</td><td>{{ company.active_departments|length }}</td></tr>
+    </table>
+
+    {% if company.priorities %}
+    <h3>Priorities</h3>
+    <ol class="tight">
+      {% for p in company.priorities %}<li>{{ p }}</li>{% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if company.hard_constraints %}
+    <h3>Hard constraints</h3>
+    <ul class="tight">
+      {% for c in company.hard_constraints %}<li>{{ c }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Departments</h2>
+    {% if departments %}
+    <ul class="dept-list">
+      {% for d in departments %}
+      <li>
+        <a href="{{ url_for('department_detail', slug=slug, dept_name=d.name) }}">
+          <strong>{{ d.display_name }}</strong>
+        </a>
+        <span class="muted small">{{ d.specialist_count }} specialists</span>
+        {% if d.onboarded %}<span class="badge ok">onboarded</span>{% endif %}
+        {% if not d.manager_memory_exists %}<span class="badge warn">no manager memory</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty">No departments configured.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="grid-3">
+  <div class="panel">
+    <h2>Recent board meetings</h2>
+    {% if recent_meetings %}
+    <ul class="tight">
+      {% for m in recent_meetings %}
+      <li>
+        <a href="{{ url_for('board_meeting', slug=slug, filename=m.name) }}">{{ m.title }}</a>
+        <div class="muted small">{{ m.mtime }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="empty small">No meetings yet.</div>{% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Recent decisions</h2>
+    {% if recent_decisions %}
+    <ul class="tight">
+      {% for d in recent_decisions %}
+      <li>
+        <a href="{{ url_for('view_artifact', slug=slug, path=d.rel_path) }}">{{ d.title }}</a>
+        <div class="muted small">{{ d.mtime }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="empty small">No decisions yet.</div>{% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Recent sessions</h2>
+    {% if recent_sessions %}
+    <ul class="tight">
+      {% for s in recent_sessions %}
+      <li>
+        <strong>{{ s.name }}</strong>
+        <div class="muted small">{{ s.file_count }} files · {{ s.mtime }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="empty small">No sessions logged.</div>{% endif %}
+  </div>
+</section>
+
+{% if artifacts.exists %}
+<section class="panel">
+  <h2>Demo artifacts</h2>
+  <p class="muted small">{{ artifacts.files|length }} files in <code>demo-artifacts/</code></p>
+  <p><a href="{{ url_for('artifacts_page', slug=slug) }}">Open browser →</a></p>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Quick actions</h2>
+  <p>
+    <a class="btn primary" href="{{ url_for('run_page', slug=slug) }}">Run an action</a>
+    <a class="btn" href="{{ url_for('artifacts_page', slug=slug) }}">Browse artifacts</a>
+    <a class="btn" href="{{ url_for('board_page', slug=slug) }}">View board</a>
+  </p>
+</section>
+
+{% if company.context_preview %}
+<section class="panel">
+  <h2>Context preview</h2>
+  <div class="md">{{ company.context_preview | markdown | safe }}</div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Office — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .office-wrap { display: grid; grid-template-columns: 1fr 360px; gap: 24px; margin-top: 12px; }
+  .org-canvas {
+    background: #0b0b0d; color: #f5f5f5; border-radius: 10px;
+    padding: 20px; min-height: 680px; position: relative;
+    border: 1px solid #1e1e20;
+  }
+  .org-canvas h2 { margin: 0 0 14px; color: #e5e5e5; font-weight: 500; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
+  .org-svg { width: 100%; height: 640px; }
+
+  .org-node-orch { fill: #fde68a; stroke: #b45309; stroke-width: 2; cursor: pointer; }
+  .org-node-mgr { fill: #93c5fd; stroke: #1e40af; stroke-width: 1.5; cursor: pointer; }
+  .org-node-mgr.dormant { fill: #4b5563; stroke: #1f2937; opacity: .6; }
+  .org-node-spec { fill: #86efac; stroke: #166534; stroke-width: 1; cursor: pointer; }
+  .org-node-board { fill: #c4b5fd; stroke: #5b21b6; stroke-width: 1; cursor: pointer; }
+  .org-label { fill: #0b0b0d; font-size: 11px; font-weight: 500; pointer-events: none; text-anchor: middle; }
+  .org-label-light { fill: #f5f5f5; font-size: 10px; pointer-events: none; text-anchor: middle; }
+  .org-link { stroke: #374151; stroke-width: 1; fill: none; opacity: .6; }
+
+  .org-node-orch:hover, .org-node-mgr:hover, .org-node-spec:hover, .org-node-board:hover {
+    filter: brightness(1.1); stroke-width: 3;
+  }
+
+  .inspector {
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 18px;
+    position: sticky; top: 16px; max-height: calc(100vh - 80px); overflow-y: auto;
+  }
+  .inspector h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .inspector .kind { color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .inspector p { margin: 10px 0; color: #444; font-size: 13px; }
+  .inspector .hint { color: #888; font-size: 12px; font-style: italic; }
+  .inspector form { margin-top: 10px; }
+  .inspector textarea {
+    width: 100%; min-height: 120px; padding: 8px 10px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-family: inherit; font-size: 13px;
+    box-sizing: border-box;
+  }
+  .inspector button {
+    margin-top: 8px; padding: 7px 14px; background: #111; color: #fff;
+    border: none; border-radius: 6px; font-size: 13px; cursor: pointer;
+  }
+  .inspector button:hover { background: #333; }
+  .inspector .specialist-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .inspector .specialist-list span { background: #ecfccb; color: #3f6212; border-radius: 999px; padding: 2px 10px; font-size: 12px; border: 1px solid #bef264; }
+  .legend { display: flex; gap: 14px; align-items: center; margin: 8px 0 4px; font-size: 12px; color: #9ca3af; }
+  .legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <h1>Office — {{ company.name }}</h1>
+  <p class="muted">Click a node to inspect · double-click a manager or specialist to open a direct brief.</p>
+  <div class="legend">
+    <span><span class="swatch" style="background:#fde68a;border:1px solid #b45309"></span>Orchestrator</span>
+    <span><span class="swatch" style="background:#93c5fd;border:1px solid #1e40af"></span>Manager</span>
+    <span><span class="swatch" style="background:#86efac;border:1px solid #166534"></span>Specialist</span>
+    <span><span class="swatch" style="background:#c4b5fd;border:1px solid #5b21b6"></span>Board voice</span>
+  </div>
+</section>
+
+<div class="office-wrap">
+  <div class="org-canvas">
+    <h2>Active Organization</h2>
+    <svg class="org-svg" viewBox="0 0 800 640" id="org-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <aside class="inspector" id="inspector">
+    <h3 id="insp-name">Select a node</h3>
+    <div class="kind" id="insp-kind">—</div>
+    <p id="insp-body">Click any node in the org chart to see details. Double-click a manager or specialist to prefill a scenario brief for them.</p>
+    <div id="insp-extra"></div>
+  </aside>
+</div>
+
+<script id="org-data" type="application/json">
+{{ org | tojson }}
+</script>
+
+<script>
+(function() {
+  const org = JSON.parse(document.getElementById("org-data").textContent);
+  const svg = document.getElementById("org-svg");
+  const W = 800, H = 640;
+  const CX = W / 2, CY = H / 2;
+  const ORCH_R = 34;
+  const MGR_R = 26;
+  const SPEC_R = 14;
+  const BOARD_R = 18;
+  const INNER_RING = 150;   // distance from center to managers
+  const OUTER_RING = 240;   // distance from center to specialists/board
+
+  function svgEl(name, attrs) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function shortLabel(txt, max) {
+    if (!txt) return "";
+    if (txt.length <= max) return txt;
+    return txt.slice(0, max - 1) + "…";
+  }
+
+  // Draw orchestrator at center.
+  const orchEl = svgEl("circle", {
+    cx: CX, cy: CY, r: ORCH_R,
+    class: "org-node-orch",
+    "data-kind": "orchestrator",
+    "data-id": "orchestrator",
+    "data-label": "Orchestrator"
+  });
+  svg.appendChild(orchEl);
+  svg.appendChild(svgEl("text", {x: CX, y: CY + 4, class: "org-label"})).textContent = "Orchestrator";
+
+  // Managers on inner ring.
+  const managers = org.managers || [];
+  const board = org.board || [];
+  // Split ring: managers get top half (from -110° to +110°), board gets bottom (110° to 250°).
+  const total = managers.length;
+  const mgrStart = -Math.PI * 0.7;   // ≈ -126°
+  const mgrEnd = Math.PI * 0.7;      // ≈ +126°
+  const mgrSpan = mgrEnd - mgrStart;
+
+  managers.forEach((mgr, i) => {
+    const theta = total === 1 ? (mgrStart + mgrEnd) / 2 : mgrStart + (mgrSpan * i / (total - 1));
+    const x = CX + INNER_RING * Math.cos(theta);
+    const y = CY + INNER_RING * Math.sin(theta);
+    // link
+    svg.appendChild(svgEl("line", {
+      x1: CX, y1: CY, x2: x, y2: y, class: "org-link"
+    }));
+    // manager
+    const cls = mgr.onboarded ? "org-node-mgr" : "org-node-mgr dormant";
+    const node = svgEl("circle", {
+      cx: x, cy: y, r: MGR_R, class: cls,
+      "data-kind": "manager",
+      "data-id": mgr.id,
+      "data-label": mgr.label,
+      "data-specialists": JSON.stringify(mgr.specialists || []),
+      "data-specialist-count": mgr.specialist_count || 0,
+      "data-onboarded": mgr.onboarded ? "1" : "0"
+    });
+    svg.appendChild(node);
+    const lbl = svgEl("text", {x: x, y: y + 4, class: "org-label"});
+    lbl.textContent = shortLabel(mgr.label, 10);
+    svg.appendChild(lbl);
+
+    // specialists around each manager
+    const specs = mgr.specialists || [];
+    specs.forEach((spec, si) => {
+      // Each specialist fans outward from the manager, in a small arc
+      // oriented away from center.
+      const arc = (Math.PI / 3) / Math.max(1, specs.length - 1);
+      const base = theta - (Math.PI / 6);
+      const phi = specs.length === 1 ? theta : base + arc * si;
+      const sx = x + 58 * Math.cos(phi);
+      const sy = y + 58 * Math.sin(phi);
+      svg.appendChild(svgEl("line", {
+        x1: x, y1: y, x2: sx, y2: sy, class: "org-link"
+      }));
+      const sNode = svgEl("circle", {
+        cx: sx, cy: sy, r: SPEC_R, class: "org-node-spec",
+        "data-kind": "specialist",
+        "data-id": spec.id,
+        "data-label": spec.label,
+        "data-manager": mgr.id
+      });
+      svg.appendChild(sNode);
+    });
+  });
+
+  // Board voices on bottom arc.
+  const boardStart = Math.PI * 0.8;
+  const boardEnd = Math.PI * 2.2;
+  const boardSpan = boardEnd - boardStart;
+  board.forEach((b, i) => {
+    const theta = board.length === 1 ? (boardStart + boardEnd) / 2 : boardStart + (boardSpan * i / (board.length - 1));
+    const x = CX + OUTER_RING * Math.cos(theta);
+    const y = CY + OUTER_RING * Math.sin(theta);
+    svg.appendChild(svgEl("line", {
+      x1: CX, y1: CY, x2: x, y2: y,
+      class: "org-link", "stroke-dasharray": "3,3"
+    }));
+    const node = svgEl("circle", {
+      cx: x, cy: y, r: BOARD_R, class: "org-node-board",
+      "data-kind": "board", "data-id": b.id, "data-label": b.label
+    });
+    svg.appendChild(node);
+    const lbl = svgEl("text", {x: x, y: y + 3, class: "org-label"});
+    lbl.textContent = shortLabel(b.label, 10);
+    svg.appendChild(lbl);
+  });
+
+  // Click + double-click handlers
+  const insp = {
+    name: document.getElementById("insp-name"),
+    kind: document.getElementById("insp-kind"),
+    body: document.getElementById("insp-body"),
+    extra: document.getElementById("insp-extra")
+  };
+
+  function showInspector(el) {
+    const kind = el.getAttribute("data-kind");
+    const id = el.getAttribute("data-id");
+    const label = el.getAttribute("data-label") || id;
+    insp.name.textContent = label;
+    insp.kind.textContent = kind;
+    let body = "";
+    let extra = "";
+    if (kind === "orchestrator") {
+      body = "Top-level coordinator. Dispatches managers, convenes the board, writes decisions and session logs. The founder talks to this.";
+      extra = '<p class="hint">Scenarios at the orchestrator level run the full demo pipeline across all active departments.</p>';
+      extra += '<a href="{{ url_for("run_page", slug=slug) }}" class="btn" style="display:inline-block;margin-top:8px;padding:7px 14px;background:#111;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;">Open Run page →</a>';
+    } else if (kind === "manager") {
+      const onboarded = el.getAttribute("data-onboarded") === "1";
+      const specCount = el.getAttribute("data-specialist-count");
+      const specs = JSON.parse(el.getAttribute("data-specialists") || "[]");
+      body = onboarded
+        ? `Department lead. ${specCount} specialist(s). Double-click to prefill a direct-dispatch brief for this manager.`
+        : `Dormant department — not onboarded yet. Double-click to open onboarding flow.`;
+      if (specs.length) {
+        extra = '<div class="specialist-list">' + specs.map(s => `<span>${s.label}</span>`).join('') + '</div>';
+      }
+      extra += `<form method="POST" action="{{ url_for('run_dispatch', slug=slug) }}">
+        <input type="hidden" name="dept" value="${id}"/>
+        <label style="font-size:12px;color:#666;margin-top:10px;display:block;">Brief for ${label}:</label>
+        <textarea name="brief" placeholder="e.g., draft a Q3 campaign grounded in our settled convictions..."></textarea>
+        <button type="submit">Dispatch →</button>
+      </form>`;
+    } else if (kind === "specialist") {
+      const managerId = el.getAttribute("data-manager");
+      body = `Specialist inside the ${managerId} department. Double-click to prefill a scenario that routes through ${managerId}'s manager.`;
+      extra = `<form method="POST" action="{{ url_for('run_dispatch', slug=slug) }}">
+        <input type="hidden" name="dept" value="${managerId}"/>
+        <label style="font-size:12px;color:#666;margin-top:10px;display:block;">Brief for ${label} (via ${managerId}):</label>
+        <textarea name="brief" placeholder="brief..."></textarea>
+        <button type="submit">Dispatch →</button>
+      </form>`;
+    } else if (kind === "board") {
+      body = `Board voice — part of the 6-voice advisory layer. Convene the board with a topic to hear ${label}'s position on a thesis.`;
+      extra = `<form method="POST" action="{{ url_for('run_board', slug=slug) }}">
+        <label style="font-size:12px;color:#666;margin-top:10px;display:block;">Topic for the board:</label>
+        <textarea name="topic" placeholder="e.g., should Old Press pursue a DTC launch in Q3..."></textarea>
+        <label style="font-size:12px;color:#666;display:block;margin-top:6px;"><input type="checkbox" name="include_dossier"> Include dossier</label>
+        <button type="submit">Convene →</button>
+      </form>`;
+    }
+    insp.body.textContent = body;
+    insp.extra.innerHTML = extra;
+  }
+
+  svg.addEventListener("click", function(e) {
+    if (!(e.target instanceof SVGElement)) return;
+    if (e.target.hasAttribute("data-kind")) {
+      showInspector(e.target);
+    }
+  });
+
+  svg.addEventListener("dblclick", function(e) {
+    if (!(e.target instanceof SVGElement)) return;
+    if (e.target.hasAttribute("data-kind")) {
+      showInspector(e.target);
+      // Scroll/focus the textarea if one was rendered
+      const ta = document.querySelector("#insp-extra textarea");
+      if (ta) ta.focus();
+    }
+  });
+})();
+</script>
+{% endblock %}

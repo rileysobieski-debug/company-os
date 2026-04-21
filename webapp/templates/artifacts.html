@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Artifacts — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Demo artifacts</h1>
+{% if artifacts.exists %}
+<p class="muted">{{ artifacts.files|length }} markdown files in <code>{{ artifacts.root }}</code></p>
+
+{% if artifacts.run_summary %}
+<section class="panel">
+  <h2>Last run summary</h2>
+  <pre class="code small">{{ artifacts.run_summary | tojson(indent=2) }}</pre>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Files</h2>
+  <table class="files">
+    <thead><tr><th>File</th><th>Size</th><th>Modified</th></tr></thead>
+    <tbody>
+      {% for f in artifacts.files %}
+      <tr>
+        <td><a href="{{ url_for('view_artifact', slug=slug, path=f.rel_path) }}">{{ f.rel_path }}</a></td>
+        <td class="muted small">{{ f.size }} B</td>
+        <td class="muted small">{{ f.mtime }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<div class="empty">
+  No demo artifacts yet. Use <a href="{{ url_for('run_page', slug=slug) }}">Run → Full demo</a> to generate them.
+</div>
+{% endif %}
+{% endblock %}

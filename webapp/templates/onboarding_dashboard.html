@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Onboarding — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .onb-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 20px; }
+  .onb-header h1 { margin: 0; }
+  .stat-row { display: flex; gap: 10px; }
+  .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; min-width: 92px; text-align: center; }
+  .stat .n { font-size: 22px; font-weight: 600; color: #111; }
+  .stat .l { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
+
+  .model-card {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 18px 22px;
+    margin-bottom: 22px; font-size: 13px;
+  }
+  .model-card h2 { margin: 0 0 8px; color: #1e3a8a; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  .model-card p { margin: 0 0 8px; color: #1e3a8a; }
+  .model-card ol { margin: 6px 0 0 18px; color: #1e3a8a; }
+  .model-card ol li { margin-bottom: 4px; }
+
+  table.dept-matrix { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+  table.dept-matrix thead th {
+    background: #f9fafb; padding: 10px 12px; text-align: left; font-size: 11px;
+    color: #6b7280; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; border-bottom: 1px solid #e5e7eb;
+  }
+  table.dept-matrix td { padding: 12px; border-top: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+  table.dept-matrix .dept { font-weight: 600; color: #1e40af; }
+
+  .phase-chip {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 500; text-transform: lowercase;
+  }
+  .phase-chip.pending { background: #f3f4f6; color: #6b7280; }
+  .phase-chip.scope_calibration { background: #eef2ff; color: #3730a3; }
+  .phase-chip.domain_research { background: #dbeafe; color: #1e40af; }
+  .phase-chip.founder_interview { background: #fce7f3; color: #9d174d; }
+  .phase-chip.kb_ingestion { background: #fef3c7; color: #92400e; }
+  .phase-chip.integrations { background: #e9d5ff; color: #6b21a8; }
+  .phase-chip.charter { background: #d1fae5; color: #065f46; }
+  .phase-chip.staffing { background: #fde68a; color: #78350f; }
+  .phase-chip.complete { background: #065f46; color: #fff; }
+
+  .cta { display: inline-block; padding: 6px 14px; border-radius: 6px; background: #111; color: #fff; text-decoration: none; font-size: 12px; }
+  .cta:hover { background: #333; }
+
+  .signoff-dots { display: inline-flex; gap: 2px; }
+  .signoff-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #e5e7eb; }
+  .signoff-dot.approved { background: #10b981; }
+  .signoff-dot.rejected { background: #dc2626; }
+  .signoff-dot.skipped { background: #fbbf24; }
+  .signoff-dot.pending { background: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="onb-header">
+    <div>
+      <h1>Department onboarding</h1>
+      <p class="muted">7-phase lifecycle per department. Each department needs to earn the right to give you production-grade advice.</p>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="n">{{ progress.depts }}</div><div class="l">depts</div></div>
+      <div class="stat"><div class="n">{{ progress.in_progress }}</div><div class="l">in progress</div></div>
+      <div class="stat"><div class="n">{{ progress.complete }}</div><div class="l">complete</div></div>
+    </div>
+  </div>
+
+  {# ── Orchestrator row ─────────────────────────────────── #}
+  {% set charter_ok = charter_exists %}
+  <div style="background:{% if charter_ok %}#f0fdf4{% else %}#fef2f2{% endif %};
+              border:1px solid {% if charter_ok %}#bbf7d0{% else %}#fecaca{% endif %};
+              border-radius:10px; padding:14px 20px; margin-bottom:20px;
+              display:flex; justify-content:space-between; align-items:center; gap:16px;">
+    <div>
+      <div style="font-size:13px;font-weight:700;color:{% if charter_ok %}#065f46{% else %}#991b1b{% endif %};">
+        Orchestrator
+        <span style="font-size:11px;font-weight:500;margin-left:8px;
+                     background:{% if charter_ok %}#d1fae5{% else %}#fee2e2{% endif %};
+                     color:{% if charter_ok %}#065f46{% else %}#991b1b{% endif %};
+                     border-radius:999px;padding:2px 9px;">
+          {% if charter_ok %}charter present{% else %}no charter — routing unguarded{% endif %}
+        </span>
+      </div>
+      <div style="font-size:12px;color:#6b7280;margin-top:3px;">
+        {% if charter_ok %}
+          Scope and delegation rules are active. Re-run the interview any time to recalibrate.
+        {% else %}
+          The orchestrator has no scope constraints. It will do work itself instead of delegating. Run the interview to fix this.
+        {% endif %}
+      </div>
+    </div>
+    <a href="{{ url_for('onboarding_orchestrator', slug=slug) }}"
+       style="background:#111;color:#fff;padding:7px 14px;border-radius:6px;
+              font-size:12px;text-decoration:none;white-space:nowrap;">
+      {% if charter_ok %}Recalibrate →{% else %}Run interview →{% endif %}
+    </a>
+  </div>
+
+  {# ── Coordination readiness tile ─────────────────────────── #}
+  {% if coord %}
+  {% set cstatus = coord.status %}
+  <div style="background:{% if cstatus == 'approved' %}#f0fdf4{% elif cstatus == 'awaiting_signoff' %}#fffbeb{% elif cstatus == 'running' %}#fffbeb{% elif cstatus == 'ready' %}#eff6ff{% elif cstatus == 'rejected' %}#fef2f2{% else %}#f9fafb{% endif %};
+              border:1px solid {% if cstatus == 'approved' %}#bbf7d0{% elif cstatus == 'awaiting_signoff' %}#fde68a{% elif cstatus == 'running' %}#fde68a{% elif cstatus == 'ready' %}#bfdbfe{% elif cstatus == 'rejected' %}#fecaca{% else %}#e5e7eb{% endif %};
+              border-radius:10px; padding:14px 20px; margin-bottom:20px;
+              display:flex; justify-content:space-between; align-items:center; gap:16px;">
+    <div>
+      <div style="font-size:13px;font-weight:700;color:#111;">
+        Scope coordination
+        <span style="font-size:11px;font-weight:500;margin-left:8px;background:#fff;color:#374151;border:1px solid #e5e7eb;border-radius:999px;padding:2px 9px;">
+          {{ cstatus|replace('_', ' ') }}
+        </span>
+        <span style="font-size:11px;font-weight:500;margin-left:6px;color:#6b7280;">
+          {{ coord.ready_count }} / {{ coord.total_depts }} departments ready
+        </span>
+      </div>
+      <div style="font-size:12px;color:#6b7280;margin-top:3px;">
+        {% if cstatus == 'not_ready' %}
+          Coordination will unlock once every active department has completed its founder interview.
+        {% elif cstatus == 'ready' %}
+          Every department has reached founder interview. You can kick off the scope coordination round.
+        {% elif cstatus == 'running' %}
+          Coordinating agent is drafting the scope map.
+        {% elif cstatus == 'awaiting_signoff' %}
+          Scope map drafted. Approve to write <code>scope-of-work.md</code> for every department.
+        {% elif cstatus == 'approved' %}
+          Scope of work ratified. Every department can proceed to Charter with its scope-of-work.md loaded as context.
+        {% elif cstatus == 'rejected' %}
+          Last draft rejected. Open coordination to run a fresh round.
+        {% endif %}
+      </div>
+    </div>
+    <a href="{{ url_for('coordination_page', slug=slug) }}"
+       style="background:#111;color:#fff;padding:7px 14px;border-radius:6px;font-size:12px;text-decoration:none;white-space:nowrap;">
+      Open coordination &rarr;
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="model-card">
+    <h2>The model</h2>
+    <p>Each department moves through these phases. Every phase ends with your sign-off before the next can start. Any phase can be skipped, and any phase can be rejected (which reruns it).</p>
+    <ol>
+      <li><strong>Arrival</strong>: manager writes an arrival note declaring its industry-locked primary expertise and a serendipitous secondary background (agent-chosen, not founder-directed). You accept, re-roll, or probe the hire before deciding. This step is about the person showing up, not about scoping the work.</li>
+      <li><strong>Domain research</strong>: manager researches both primary and secondary.</li>
+      <li><strong>Founder interview</strong>: manager, now grounded in domain context, asks you specialty-specific questions.</li>
+      <li><strong>KB ingestion</strong>: multimodal intake pipeline (text, PDFs, images, video transcripts).</li>
+      <li><strong>Integrations</strong>: external systems (banking, POS, ESP, shipping, etc.) specific to the department.</li>
+      <li><strong>Charter</strong>: 1-page mandate, first-month priorities, NEVER list, cross-dept asks. Informed by the upcoming company-level scope coordination.</li>
+      <li><strong>Staffing</strong>: the manager proposes the department's roster of sub-agents from scratch, each with their own locked primary and serendipitous secondary. You approve row by row.</li>
+    </ol>
+    <p class="muted" style="font-size:12px;margin-top:8px;">Scope of work is settled at a separate, company-level coordination round that fires once every department has completed its arrival and founder interview. Managers cross-reference each other to avoid overlap and ensure full coverage.</p>
+  </div>
+
+  <table class="dept-matrix">
+    <thead>
+      <tr>
+        <th>Department</th>
+        <th>Current phase</th>
+        <th>Completed</th>
+        <th>Artifacts</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td class="dept">{{ row.dept_label }}</td>
+        <td>
+          <span class="phase-chip {{ row.state.phase }}">{{ row.state.phase|replace('_', ' ') }}</span>
+          {% if row.state.current_artifact %}
+          <span class="signoff-dots" style="margin-left:6px;" title="{{ row.state.current_artifact.signoff }}">
+            <span class="signoff-dot {{ row.state.current_artifact.signoff }}"></span>
+          </span>
+          {% endif %}
+        </td>
+        <td>
+          <span style="font-size:12px;color:#6b7280;">
+            {% if row.state.completed_phases %}
+              {{ row.state.completed_phases|length }} / 5
+            {% elif row.state.skipped_phases %}
+              {{ row.state.skipped_phases|length }} skipped
+            {% else %}—{% endif %}
+          </span>
+        </td>
+        <td>
+          <span style="font-size:12px;color:#6b7280;">
+            {{ row.state.artifacts|length }} total
+          </span>
+        </td>
+        <td style="text-align:right;">
+          <a href="{{ url_for('onboarding_dept', slug=slug, dept=row.dept.name) }}" class="cta">Open →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

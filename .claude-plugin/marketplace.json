@@ -1,0 +1,14 @@
+{
+  "name": "company-os-local",
+  "owner": {
+    "name": "Riley Sobieski"
+  },
+  "plugins": [
+    {
+      "name": "company-os",
+      "description": "Multi-agent business orchestration framework. Slash commands for adversary, kill-switch retros, cost and assumption dashboards, dept dispatch, specialist chat, and the comprehensive demo.",
+      "source": "./plugin",
+      "category": "productivity"
+    }
+  ]
+}

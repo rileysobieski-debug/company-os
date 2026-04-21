@@ -1,0 +1,4 @@
+asset_id: usdc-base
+chain_id: base-mainnet
+contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+decimals: 6

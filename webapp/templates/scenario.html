@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Scenario runner — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .sc-wrap { display: grid; grid-template-columns: 1fr 340px; gap: 24px; margin-top: 16px; }
+  .sc-main { min-width: 0; }
+  .sc-side { display: flex; flex-direction: column; gap: 14px; }
+
+  .sc-lane { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+  .sc-lane h2 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #475569; font-weight: 600; }
+  .sc-lane p.desc { margin: 0 0 12px; font-size: 13px; color: #6b7280; }
+
+  .dept-group { border-top: 1px solid #f1f5f9; padding: 14px 0; }
+  .dept-group:first-of-type { border-top: none; padding-top: 6px; }
+  .dept-group h3 { margin: 0 0 8px; font-size: 13px; color: #111; font-weight: 600; }
+  .dept-scenarios { display: flex; flex-direction: column; gap: 6px; }
+  .dept-scenario {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px;
+    cursor: pointer; font-size: 13px; transition: all .12s ease;
+  }
+  .dept-scenario:hover { background: #ecfccb; border-color: #bef264; }
+  .dept-scenario.active { background: #fde68a; border-color: #f59e0b; }
+  .dept-scenario .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .dept-scenario .name { font-weight: 500; color: #111; }
+  .dept-scenario .pick { font-size: 11px; color: #6b7280; white-space: nowrap; }
+  .dept-scenario .watch { font-size: 11px; color: #6b7280; margin-top: 4px; line-height: 1.35; }
+  .dept-scenario .watch .label { color: #111; font-weight: 500; }
+
+  .stype { display: inline-block; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 999px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+  .stype.convergence { background: #dbeafe; color: #1e40af; }
+  .stype.creativity { background: #f3e8ff; color: #6b21a8; }
+  .stype.constraint { background: #fee2e2; color: #991b1b; }
+  .stype.calibration { background: #fef3c7; color: #78350f; }
+  .stype.coordination { background: #dcfce7; color: #14532d; }
+  .cadence { display: inline-block; font-size: 10px; color: #9ca3af; margin-left: 6px; }
+
+  .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb; font-size: 12px; align-items: center; }
+  .filter-bar .label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-right: 4px; font-weight: 600; }
+  .filter-bar button { background: #fff; border: 1px solid #e5e7eb; border-radius: 999px; padding: 3px 12px; font-size: 11px; cursor: pointer; color: #111; }
+  .filter-bar button.active { background: #111; color: #fff; border-color: #111; }
+  .filter-bar button:hover { background: #f3f4f6; }
+  .filter-bar button.active:hover { background: #333; }
+  .dept-scenario.hidden { display: none; }
+
+  .sc-form { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; margin-top: 16px; }
+  .sc-form label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin: 12px 0 4px; font-weight: 600; }
+  .sc-form label:first-of-type { margin-top: 0; }
+  .sc-form select, .sc-form input, .sc-form textarea {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-family: inherit; font-size: 14px;
+  }
+  .sc-form textarea { min-height: 160px; resize: vertical; font-family: inherit; }
+  .sc-form .actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+  .sc-form button.primary {
+    background: #111; color: #fff; border: none; border-radius: 6px;
+    padding: 10px 24px; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .sc-form button.primary:hover { background: #333; }
+  .sc-form .hint { color: #9ca3af; font-size: 12px; }
+
+  .awareness-card { background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; font-size: 13px; }
+  .awareness-card h4 { margin: 0 0 8px; color: #78350f; font-size: 13px; }
+  .awareness-card .note-preview {
+    background: #fff; border: 1px solid #fde68a; border-radius: 5px; padding: 8px 10px;
+    margin-bottom: 6px; font-size: 12px;
+  }
+  .awareness-card .note-preview .who { color: #1e40af; font-weight: 500; }
+  .awareness-card .note-preview .what { color: #374151; }
+  .awareness-card .empty { color: #78350f; font-style: italic; font-size: 12px; margin: 0; }
+
+  .rails-card {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; font-size: 12px; color: #166534;
+  }
+  .rails-card h4 { margin: 0 0 6px; color: #14532d; font-size: 13px; }
+  .rails-card ul { margin: 4px 0; padding-left: 18px; }
+  .rails-card li { margin-bottom: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <h1>Scenario runner</h1>
+  <p class="muted">Primary experimental UI for Phase 14 dogfood. Pick a pre-seeded brief or write your own. Dispatch runs in the background — results show up on Jobs.</p>
+
+  <div class="sc-wrap">
+    <div class="sc-main">
+      <div class="sc-lane" style="background:#fefce8;border-color:#fde68a;margin-bottom:12px;">
+        <h2 style="color:#78350f;">Batch run</h2>
+        <p class="desc" style="color:#78350f;">Fire many scenarios concurrently. Useful for convergence experiments (run every convergence scenario → see which rhyme) or compliance audits (run every constraint → see which refuse).</p>
+        <form method="POST" action="{{ url_for('run_scenario_batch', slug=slug) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button type="submit" style="background:#78350f;color:#fff;border:none;padding:9px 18px;border-radius:6px;font-weight:500;cursor:pointer;font-size:13px;">Run batch →</button>
+          <span style="font-size:12px;color:#78350f;">By type:
+            <select name="only_type" style="padding:6px 8px;border:1px solid #fde68a;border-radius:5px;font-size:12px;">
+              <option value="">all</option>
+              <option value="convergence">convergence</option>
+              <option value="creativity">creativity</option>
+              <option value="constraint">constraint</option>
+              <option value="calibration">calibration</option>
+              <option value="coordination">coordination</option>
+            </select>
+          </span>
+          <span style="font-size:12px;color:#78350f;">By dept: <input type="text" name="only_depts" placeholder="marketing,finance" style="padding:6px 10px;border:1px solid #fde68a;border-radius:5px;font-size:12px;width:160px;"></span>
+        </form>
+      </div>
+
+      <div class="sc-lane">
+        <h2>Scenario portfolio</h2>
+        <p class="desc">45 scenarios across 9 departments, typed by purpose. Each one has a "what to watch" note — run it repeatedly and measure whether the signal shows up.</p>
+
+        <div class="filter-bar" id="filter-bar">
+          <span class="label">Filter by type:</span>
+          <button data-filter="all" class="active">All</button>
+          <button data-filter="convergence" title="Same brief should RHYME across runs. Divergence = calibration problem.">Convergence</button>
+          <button data-filter="creativity" title="Same brief SHOULD produce range. Collapse = over-pinned.">Creativity</button>
+          <button data-filter="constraint" title="Brief pushes a hard rail. Agent must refuse or heavily flag.">Constraint</button>
+          <button data-filter="calibration" title="Brief is under-specified. Agent should demand context.">Calibration</button>
+          <button data-filter="coordination" title="Brief touches multiple depts. Agent should FLAG dependencies.">Coordination</button>
+        </div>
+
+        {% for group in scenarios %}
+          {% if group.briefs %}
+          <div class="dept-group" data-dept="{{ group.dept }}">
+            <h3>{{ group.label }}</h3>
+            <div class="dept-scenarios">
+              {% for b in group.briefs %}
+              <div class="dept-scenario"
+                   data-dept="{{ group.dept }}"
+                   data-name="{{ b.name }}"
+                   data-brief="{{ b.brief }}"
+                   data-type="{{ b.scenario_type }}">
+                <div class="row">
+                  <span class="name">
+                    {{ b.name }}
+                    <span class="stype {{ b.scenario_type }}">{{ b.scenario_type }}</span>
+                    <span class="cadence">· {{ b.cadence }}</span>
+                  </span>
+                  <span class="pick">select →</span>
+                </div>
+                <div class="watch"><span class="label">Watch:</span> {{ b.what_to_watch }}</div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <form class="sc-form" method="POST" action="{{ url_for('run_dispatch', slug=slug) }}" id="scenario-form">
+        <label for="dept-select">Department</label>
+        <select name="dept" id="dept-select" required>
+          <option value="">— select —</option>
+          {% for d in departments %}
+          <option value="{{ d.name }}">{{ d.display_name or d.name }}{% if not d.onboarded %} (dormant){% endif %}</option>
+          {% endfor %}
+        </select>
+
+        <label for="scenario-name">Scenario label (optional)</label>
+        <input type="text" id="scenario-name" name="scenario_name" placeholder="e.g., Q3 campaign draft"/>
+
+        <label for="brief">Brief</label>
+        <textarea name="brief" id="brief" required placeholder="Describe the task to dispatch. Specific wins — generic answers will be rejected."></textarea>
+
+        <div class="actions" style="flex-wrap:wrap;gap:8px;">
+          <button type="submit" class="primary">Run once →</button>
+          <button type="submit" class="primary" style="background:#2563eb;" formaction="{{ url_for('run_scenario_ab', slug=slug) }}" title="Fire the same brief TWICE concurrently. You'll pick the better response side-by-side.">Run A/B (2 concurrent) →</button>
+          <span class="hint" style="font-size:11px;">A/B = 2 runs with the same brief. <a href="{{ url_for('ledger_pairs', slug=slug) }}">See all pairs</a>.</span>
+        </div>
+      </form>
+    </div>
+
+    <aside class="sc-side">
+      <div class="awareness-card">
+        <h4>Ambient context ({{ active_notes|length }} active)</h4>
+        {% if active_notes %}
+          {% for n in active_notes[:3] %}
+          <div class="note-preview">
+            <div><span class="who">{{ n.observer }}</span> on <strong>{{ n.subject }}</strong></div>
+            <div class="what">{{ n.observation[:140] }}{% if n.observation|length > 140 %}…{% endif %}</div>
+          </div>
+          {% endfor %}
+          {% if active_notes|length > 3 %}
+          <p class="empty"><a href="{{ url_for('awareness_page', slug=slug) }}">All {{ active_notes|length }} notes →</a></p>
+          {% endif %}
+        {% else %}
+          <p class="empty">No active ambient notes. Run a few dispatches to accumulate signal.</p>
+        {% endif %}
+      </div>
+
+      <div class="rails-card">
+        <h4>What Phase 14 tests</h4>
+        <ul>
+          <li><strong>Hash-backed provenance</strong> — tampered chunks get rejected</li>
+          <li><strong>Timestamp sanity</strong> — future dates can't win tiebreakers</li>
+          <li><strong>Founder signature</strong> — supersedes against Priority 1 require it</li>
+          <li><strong>Watchdog coverage</strong> — padding around a quote fails strict mode</li>
+          <li><strong>Ambient awareness</strong> — quality gate + evidence verification</li>
+          <li><strong>Rating trend</strong> — gradual adversary drift surfaces early</li>
+        </ul>
+      </div>
+
+      <div class="rails-card" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;">
+        <h4>Suggested experiment log</h4>
+        <ul style="color:#3730a3;">
+          <li>Name the scenario</li>
+          <li>Save the brief</li>
+          <li>Mark the job ID after dispatch</li>
+          <li>Rate the output 0–5</li>
+          <li>Note any surprise, good or bad</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<script>
+(function() {
+  const scenarios = document.querySelectorAll(".dept-scenario");
+  const deptSelect = document.getElementById("dept-select");
+  const briefArea = document.getElementById("brief");
+  const nameInput = document.getElementById("scenario-name");
+
+  scenarios.forEach(el => {
+    el.addEventListener("click", () => {
+      scenarios.forEach(s => s.classList.remove("active"));
+      el.classList.add("active");
+      const dept = el.getAttribute("data-dept");
+      const brief = el.getAttribute("data-brief");
+      const name = el.getAttribute("data-name");
+      deptSelect.value = dept;
+      briefArea.value = brief;
+      nameInput.value = name;
+      briefArea.focus();
+      briefArea.setSelectionRange(briefArea.value.length, briefArea.value.length);
+    });
+  });
+
+  // Filter by scenario type
+  const filterBtns = document.querySelectorAll("#filter-bar button");
+  filterBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      filterBtns.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const f = btn.getAttribute("data-filter");
+      scenarios.forEach(s => {
+        if (f === "all" || s.getAttribute("data-type") === f) {
+          s.classList.remove("hidden");
+        } else {
+          s.classList.add("hidden");
+        }
+      });
+      // Hide dept groups whose scenarios are all filtered out
+      document.querySelectorAll(".dept-group").forEach(g => {
+        const visible = g.querySelectorAll(".dept-scenario:not(.hidden)").length;
+        g.style.display = visible === 0 ? "none" : "";
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

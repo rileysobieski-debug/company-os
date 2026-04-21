@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}Company OS{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <style>
+    /* ── Inbox drawer ─────────────────────────────────────────── */
+    .inbox-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+      padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+      cursor: pointer; white-space: nowrap; line-height: 1; height: 30px;
+      transition: background .15s;
+    }
+    .inbox-btn:hover { background: #0f172a; }
+    .inbox-btn .badge {
+      background: #2563eb; color: #fff; border-radius: 999px;
+      font-size: 10px; padding: 1px 6px; font-weight: 700; min-width: 16px;
+      text-align: center;
+    }
+
+    .inbox-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35);
+      z-index: 900;
+    }
+    .inbox-overlay.open { display: block; }
+
+    .inbox-panel {
+      position: fixed; top: 0; right: -400px; width: 380px; height: 100vh;
+      background: #fff; box-shadow: -4px 0 24px rgba(0,0,0,.18);
+      z-index: 901; display: flex; flex-direction: column;
+      transition: right .22s cubic-bezier(.4,0,.2,1);
+      font-family: inherit;
+    }
+    .inbox-panel.open { right: 0; }
+
+    .inbox-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0;
+    }
+    .inbox-top h2 { margin: 0; font-size: 14px; font-weight: 700; color: #111; }
+    .inbox-top .new-btn {
+      font-size: 11px; background: #f1f5f9; border: 1px solid #e2e8f0;
+      color: #374151; padding: 4px 10px; border-radius: 5px; cursor: pointer;
+      text-decoration: none; display: inline-block;
+    }
+    .inbox-close {
+      background: none; border: none; font-size: 20px; color: #6b7280;
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+
+    .inbox-threads {
+      flex: 1; overflow-y: auto; padding: 0;
+    }
+    .inbox-empty {
+      padding: 32px 16px; text-align: center; color: #9ca3af; font-size: 13px;
+    }
+    .inbox-loading {
+      padding: 24px 16px; text-align: center; color: #9ca3af; font-size: 12px;
+    }
+
+    .thread-row {
+      display: block; padding: 11px 16px; border-bottom: 1px solid #f1f5f9;
+      text-decoration: none; color: inherit; cursor: pointer;
+      transition: background .1s;
+    }
+    .thread-row:hover { background: #f8fafc; }
+    .thread-row.is-open .thread-name { color: #1d4ed8; }
+    .thread-name {
+      font-size: 13px; font-weight: 600; color: #1f2937;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .thread-agent {
+      font-size: 11px; color: #6b7280; margin-top: 1px;
+    }
+    .thread-preview {
+      font-size: 12px; color: #4b5563; margin-top: 3px;
+      overflow: hidden; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      line-height: 1.4;
+    }
+    .thread-meta {
+      font-size: 10px; color: #9ca3af; margin-top: 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .thread-pill {
+      border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 600;
+    }
+    .pill-open   { background: #d1fae5; color: #065f46; }
+    .pill-closed { background: #f3f4f6; color: #6b7280; }
+    .pill-orch   { background: #dbeafe; color: #1e40af; }
+    .pill-mgr    { background: #ede9fe; color: #5b21b6; }
+
+    .inbox-section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .07em; color: #9ca3af; padding: 10px 16px 4px;
+      background: #f9fafb; border-bottom: 1px solid #f1f5f9;
+    }
+
+    /* Quick-compose at bottom */
+    .inbox-compose {
+      border-top: 2px solid #e5e7eb; padding: 12px 14px; flex-shrink: 0;
+      background: #fafafa;
+    }
+    .inbox-compose .compose-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: #374151; margin-bottom: 7px;
+    }
+    .inbox-compose textarea {
+      width: 100%; min-height: 64px; max-height: 140px;
+      padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px;
+      font-family: inherit; font-size: 13px; box-sizing: border-box;
+      resize: vertical; line-height: 1.5; background: #fff;
+    }
+    .inbox-compose textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+    .inbox-compose .compose-row {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 8px;
+    }
+    .inbox-compose .compose-hint { font-size: 10px; color: #9ca3af; }
+    .inbox-compose button[type=submit] {
+      background: #1e293b; color: #fff; border: none;
+      padding: 7px 16px; border-radius: 6px; font-size: 12px;
+      font-weight: 600; cursor: pointer;
+    }
+    .inbox-compose button[type=submit]:hover { background: #0f172a; }
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="{{ url_for('index') }}">Company OS</a>
+    </div>
+    {% if slug %}
+    {% set nav_groups = {
+      'company_dashboard': 'dashboard',
+      'onboarding_dashboard': 'onboarding', 'onboarding_dept': 'onboarding', 'onboarding_orchestrator': 'onboarding',
+      'coordination_page': 'coordination',
+      'governance_page': 'governance',
+      'stack_review_index': 'stack_review', 'stack_review_detail': 'stack_review',
+      'office_page': 'office',
+      'departments_page': 'departments', 'department_detail': 'departments',
+      'board_page': 'board',
+      'awareness_page': 'awareness',
+      'knowledge_page': 'knowledge',
+      'sessions_page': 'sessions',
+      'decisions_page': 'decisions',
+      'scenario_page': 'scenario',
+      'ledger_page': 'ledger', 'ledger_compare': 'ledger',
+      'run_page': 'run',
+      'jobs_page': 'jobs', 'job_detail': 'jobs',
+    } %}
+    {% set active_nav = nav_groups.get(request.endpoint, '') %}
+    <nav class="primary-nav">
+      <a href="{{ url_for('company_dashboard', slug=slug) }}"{% if active_nav == 'dashboard' %} class="active"{% endif %}>Dashboard</a>
+      <a href="{{ url_for('onboarding_dashboard', slug=slug) }}"{% if active_nav == 'onboarding' %} class="active"{% endif %}>Onboarding</a>
+      <a href="{{ url_for('coordination_page', slug=slug) }}"{% if active_nav == 'coordination' %} class="active"{% endif %}>Coordination</a>
+      <a href="{{ url_for('governance_page', slug=slug) }}"{% if active_nav == 'governance' %} class="active"{% endif %}>Governance</a>
+      <a href="{{ url_for('stack_review_index', slug=slug) }}"{% if active_nav == 'stack_review' %} class="active"{% endif %}>Stack Review</a>
+      <a href="{{ url_for('office_page', slug=slug) }}"{% if active_nav == 'office' %} class="active"{% endif %}>Office</a>
+      <a href="{{ url_for('departments_page', slug=slug) }}"{% if active_nav == 'departments' %} class="active"{% endif %}>Departments</a>
+      <a href="{{ url_for('board_page', slug=slug) }}"{% if active_nav == 'board' %} class="active"{% endif %}>Board</a>
+      <a href="{{ url_for('awareness_page', slug=slug) }}"{% if active_nav == 'awareness' %} class="active"{% endif %}>Awareness</a>
+      <a href="{{ url_for('knowledge_page', slug=slug) }}"{% if active_nav == 'knowledge' %} class="active"{% endif %}>Knowledge</a>
+      <a href="{{ url_for('sessions_page', slug=slug) }}"{% if active_nav == 'sessions' %} class="active"{% endif %}>Sessions</a>
+      <a href="{{ url_for('decisions_page', slug=slug) }}"{% if active_nav == 'decisions' %} class="active"{% endif %}>Decisions</a>
+      <a href="{{ url_for('scenario_page', slug=slug) }}"{% if active_nav == 'scenario' %} class="active"{% endif %}>Scenario</a>
+      <a href="{{ url_for('ledger_page', slug=slug) }}"{% if active_nav == 'ledger' %} class="active"{% endif %}>Ledger</a>
+      <a href="{{ url_for('run_page', slug=slug) }}"{% if active_nav == 'run' %} class="active"{% endif %}>Run</a>
+      <a href="{{ url_for('jobs_page', slug=slug) }}"{% if active_nav == 'jobs' %} class="active"{% endif %}>Jobs</a>
+    </nav>
+
+    <button class="inbox-btn" id="inbox-toggle" onclick="inboxToggle()" title="Open inbox / chat with Orchestrator">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" style="opacity:.8"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H6l-4 4V5z"/></svg>
+      Inbox
+      <span class="badge" id="inbox-badge" style="display:none">0</span>
+    </button>
+    {% endif %}
+
+    {% if company %}
+    <div class="company-chip" title="{{ company.company_dir }}">
+      <strong>{{ company.name }}</strong>
+      {% if company.industry %}<span class="muted">· {{ company.industry }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </header>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span class="muted">Company OS · multi-agent orchestration · Sonnet 4.6</span>
+  </footer>
+
+  {% if slug %}
+  {# ── Inbox drawer ──────────────────────────────────────────── #}
+  <div class="inbox-overlay" id="inbox-overlay" onclick="inboxClose()"></div>
+  <div class="inbox-panel" id="inbox-panel">
+
+    <div class="inbox-top">
+      <h2>Inbox</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a class="new-btn" href="{{ url_for('chat_index', slug=slug) }}">All threads →</a>
+        <button class="inbox-close" onclick="inboxClose()" title="Close">×</button>
+      </div>
+    </div>
+
+    <div class="inbox-threads" id="inbox-threads">
+      <div class="inbox-loading">Loading threads…</div>
+    </div>
+
+    <div class="inbox-compose">
+      <div class="compose-label">Quick message → Orchestrator</div>
+      <form method="POST" action="{{ url_for('inbox_quick_send', slug=slug) }}" onsubmit="return inboxSubmit(this)">
+        <textarea name="content" id="inbox-textarea" placeholder="Ask anything — the orchestrator picks it up…" required></textarea>
+        <div class="compose-row">
+          <span class="compose-hint">Opens or continues your active orchestrator thread</span>
+          <button type="submit">Send →</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    const SLUG = {{ slug | tojson }};
+    const panel = document.getElementById('inbox-panel');
+    const overlay = document.getElementById('inbox-overlay');
+    const badge = document.getElementById('inbox-badge');
+    const threadsEl = document.getElementById('inbox-threads');
+    let loaded = false;
+
+    window.inboxToggle = function () {
+      if (panel.classList.contains('open')) {
+        inboxClose();
+      } else {
+        inboxOpen();
+      }
+    };
+    window.inboxClose = function () {
+      panel.classList.remove('open');
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+    };
+    function inboxOpen() {
+      panel.classList.add('open');
+      overlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      if (!loaded) loadThreads();
+    }
+
+    function loadThreads() {
+      loaded = true;
+      fetch('/api/c/' + SLUG + '/threads')
+        .then(r => r.json())
+        .then(threads => renderThreads(threads))
+        .catch(() => {
+          threadsEl.innerHTML = '<div class="inbox-empty">Could not load threads.</div>';
+        });
+    }
+
+    function renderThreads(threads) {
+      if (!threads.length) {
+        threadsEl.innerHTML = '<div class="inbox-empty">No conversations yet.<br>Send a quick message below to start one.</div>';
+        return;
+      }
+
+      const open = threads.filter(t => t.is_open);
+      const closed = threads.filter(t => !t.is_open);
+
+      // Update badge
+      if (open.length) {
+        badge.textContent = open.length;
+        badge.style.display = 'inline-block';
+      }
+
+      let html = '';
+      if (open.length) {
+        html += '<div class="inbox-section-label">Open (' + open.length + ')</div>';
+        open.forEach(t => { html += threadRow(t, SLUG); });
+      }
+      if (closed.length) {
+        html += '<div class="inbox-section-label">Closed (' + closed.length + ')</div>';
+        closed.forEach(t => { html += threadRow(t, SLUG); });
+      }
+      threadsEl.innerHTML = html;
+    }
+
+    function agentLabel(agent) {
+      if (agent === 'orchestrator') return 'Orchestrator';
+      if (agent.startsWith('manager:')) return agent.replace('manager:', '') + ' manager';
+      return agent;
+    }
+    function agentPillClass(agent) {
+      return agent === 'orchestrator' ? 'pill-orch' : 'pill-mgr';
+    }
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function threadRow(t, slug) {
+      const url = '/c/' + slug + '/chat/' + t.id;
+      const statusPill = t.is_open
+        ? '<span class="thread-pill pill-open">open</span>'
+        : '<span class="thread-pill pill-closed">closed</span>';
+      const agentPill = '<span class="thread-pill ' + agentPillClass(t.target_agent) + '">' + esc(agentLabel(t.target_agent)) + '</span>';
+      const preview = t.preview ? '<div class="thread-preview">' + esc(t.preview) + '</div>' : '';
+      return (
+        '<a class="thread-row' + (t.is_open ? ' is-open' : '') + '" href="' + url + '" onclick="inboxClose()">' +
+          '<div class="thread-name">' + esc(t.title) + '</div>' +
+          '<div class="thread-agent">' + esc(agentLabel(t.target_agent)) + ' · ' + t.turn_count + ' turns</div>' +
+          preview +
+          '<div class="thread-meta">' + statusPill + agentPill + '<span>' + esc(t.created_at) + '</span></div>' +
+        '</a>'
+      );
+    }
+
+    window.inboxSubmit = function(form) {
+      const ta = form.querySelector('textarea');
+      if (!ta.value.trim()) return false;
+      return true;
+    };
+
+    // Keyboard shortcut: Escape closes
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && panel.classList.contains('open')) inboxClose();
+    });
+  })();
+  </script>
+  {% endif %}
+
+</body>
+</html>

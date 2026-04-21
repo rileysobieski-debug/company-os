@@ -1,0 +1,15 @@
+{
+  "name": "company-os",
+  "description": "Company OS — multi-agent business orchestration framework. Dispatch department briefs, talk to specialists, invoke the adversary, trigger kill-switch retros, read cost and assumption dashboards.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Riley Sobieski"
+  },
+  "keywords": [
+    "multi-agent",
+    "orchestration",
+    "editorial-ops",
+    "wine-beverage",
+    "founder-tools"
+  ]
+}

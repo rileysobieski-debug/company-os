@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ company.name }} — Cost dashboard{% endblock %}
+
+{% block content %}
+<h1>{{ company.name }} — Cost dashboard</h1>
+<p class="muted">
+  Every LLM call routed through <code>core.llm_client.single_turn()</code>
+  with a configured <code>TokenLedger(log_path=…)</code> is appended to
+  <code>{{ costs.log_path }}</code>. Chunk 1a.9.
+</p>
+
+{% if costs.missing %}
+<section class="panel">
+  <h2>No calls recorded yet</h2>
+  <p class="muted">
+    The log file has not been written to. This is expected if no dispatches have
+    run since the ledger was configured, or if <code>COMPANY_OS_VAULT_DIR</code>
+    was unset when the orchestrator started.
+  </p>
+</section>
+{% else %}
+
+<section class="grid-2">
+  <div class="panel">
+    <h2>Totals</h2>
+    <table class="kv">
+      <tr><td>Calls</td><td>{{ costs.totals.call_count }}</td></tr>
+      <tr><td>Input tokens</td><td>{{ costs.totals.input }}</td></tr>
+      <tr><td>Output tokens</td><td>{{ costs.totals.output }}</td></tr>
+      <tr><td>Combined</td><td>{{ costs.totals.total }}</td></tr>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>By session</h2>
+    {% if costs.by_session %}
+    <table class="kv">
+      <thead><tr><th>Session</th><th>Calls</th><th>Input</th><th>Output</th><th>Total</th></tr></thead>
+      <tbody>
+      {% for sid, row in costs.by_session.items() %}
+        <tr>
+          <td><code>{{ sid }}</code></td>
+          <td>{{ row.entry_count }}</td>
+          <td>{{ row.input }}</td>
+          <td>{{ row.output }}</td>
+          <td>{{ row.total }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No session-tagged entries.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2>By cost tag</h2>
+  {% if costs.by_tag %}
+  <table class="kv">
+    <thead><tr><th>Tag</th><th>Calls</th><th>Input</th><th>Output</th><th>Total</th></tr></thead>
+    <tbody>
+    {% for tag, row in costs.by_tag.items() %}
+      <tr>
+        <td><code>{{ tag }}</code></td>
+        <td>{{ row.entry_count }}</td>
+        <td>{{ row.input }}</td>
+        <td>{{ row.output }}</td>
+        <td>{{ row.total }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No tagged entries.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Recent calls</h2>
+  <table class="kv">
+    <thead><tr><th>Timestamp</th><th>Session</th><th>Tag</th><th>Model</th><th>In</th><th>Out</th></tr></thead>
+    <tbody>
+    {% for e in costs.entries[-50:]|reverse %}
+      <tr>
+        <td><code>{{ e.timestamp }}</code></td>
+        <td><code>{{ e.session_id }}</code></td>
+        <td><code>{{ e.cost_tag }}</code></td>
+        <td>{{ e.model }}</td>
+        <td>{{ e.input_tokens }}</td>
+        <td>{{ e.output_tokens }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endif %}
+
+<p class="muted">
+  <a href="{{ url_for('company_dashboard', slug=slug) }}">← back to dashboard</a>
+</p>
+{% endblock %}

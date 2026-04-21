@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Orchestrator Onboarding — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .orch-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+  .orch-header h1 { margin: 0 0 4px; }
+
+  .status-banner { border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; }
+  .status-banner.missing  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .status-banner.present  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+  .charter-preview {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 16px 18px; font-size: 12px; font-family: monospace;
+    white-space: pre-wrap; max-height: 380px; overflow-y: auto; margin-bottom: 20px;
+    color: #1e293b; line-height: 1.6;
+  }
+
+  .interview-card {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 20px 22px;
+  }
+  .interview-card h2 { margin: 0 0 6px; font-size: 14px; color: #92400e; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  .interview-card p  { margin: 0 0 16px; font-size: 13px; color: #78350f; }
+
+  .q-block { margin-bottom: 18px; }
+  .q-label { font-size: 12px; font-weight: 600; color: #1f2937; margin-bottom: 5px; display: block; }
+  .q-hint  { font-size: 11px; color: #6b7280; margin-bottom: 5px; display: block; }
+  .q-block textarea, .q-block input[type=text] {
+    width: 100%; padding: 8px 10px; border: 1px solid #d97706; border-radius: 6px;
+    font-family: inherit; font-size: 13px; box-sizing: border-box;
+    background: #fff; resize: vertical;
+  }
+  .q-block textarea:focus, .q-block input:focus {
+    outline: none; border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,.15);
+  }
+
+  .submit-row { display: flex; align-items: center; gap: 14px; margin-top: 20px; }
+  .submit-row button {
+    background: #92400e; color: #fff; border: none; padding: 10px 22px;
+    border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .submit-row button:hover { background: #78350f; }
+  .submit-row .hint { font-size: 11px; color: #78350f; }
+
+  .back-link { font-size: 12px; color: #6b7280; text-decoration: none; }
+  .back-link:hover { color: #374151; }
+
+  .action-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .btn-secondary {
+    background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0;
+    padding: 7px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    text-decoration: none; display: inline-block;
+  }
+  .btn-secondary:hover { background: #e2e8f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div style="margin-bottom:12px;">
+    <a class="back-link" href="{{ url_for('onboarding_dashboard', slug=slug) }}">← Onboarding dashboard</a>
+  </div>
+
+  <div class="orch-header">
+    <div>
+      <h1>Orchestrator onboarding</h1>
+      <p class="muted">Calibrate the orchestrator's routing logic, delegation scope, and communication style through a founder interview. Output: <code>orchestrator-charter.md</code> — read on every session start.</p>
+    </div>
+  </div>
+
+  {% if charter_exists %}
+  <div class="status-banner present">
+    Charter present — <code>orchestrator-charter.md</code> — last modified {{ charter_modified }}. The orchestrator reads this file at the start of every session.
+  </div>
+  <div class="action-row">
+    <a class="btn-secondary" href="{{ url_for('view_artifact', slug=slug, path='orchestrator-charter.md', back=url_for('onboarding_orchestrator', slug=slug)) }}">View full charter →</a>
+  </div>
+  <div class="charter-preview">{{ charter_preview }}</div>
+  {% else %}
+  <div class="status-banner missing">
+    No charter found. The orchestrator is operating without scope constraints — it will attempt to answer requests directly instead of delegating to the appropriate department.
+  </div>
+  {% endif %}
+
+  <div class="interview-card">
+    <h2>{{ 'Re-run' if charter_exists else 'Run' }} founder interview</h2>
+    <p>Answer these questions. An agent generates a <code>orchestrator-charter.md</code> calibrated to your answers. Takes ~60 seconds. Review and edit the output before treating it as final.</p>
+
+    <form method="POST" action="{{ url_for('onboarding_orchestrator_run', slug=slug) }}">
+
+      <div class="q-block">
+        <label class="q-label">1. What requests should the orchestrator answer directly — without dispatching to a department?</label>
+        <span class="q-hint">e.g. status checks, "what did we decide about X", routing questions, session management</span>
+        <textarea name="q_direct" rows="3" required placeholder="Status questions, recalling past decisions, explaining what the system is doing…">{{ prefill.q_direct }}</textarea>
+      </div>
+
+      <div class="q-block">
+        <label class="q-label">2. What tasks must the orchestrator NEVER do itself — always delegate, no exceptions?</label>
+        <span class="q-hint">Be specific. These become hard stops in the charter.</span>
+        <textarea name="q_never" rows="3" required placeholder="Writing copy, financial calculations, regulatory research, designing products…">{{ prefill.q_never }}</textarea>
+      </div>
+
+      <div class="q-block">
+        <label class="q-label">3. When should the board be convened vs. dispatching to a single department?</label>
+        <span class="q-hint">Board sessions are slow and expensive. What warrants the debate?</span>
+        <textarea name="q_board" rows="3" required placeholder="Major strategic tradeoffs, capital allocation decisions over $X, questions where Contrarian pushback matters…">{{ prefill.q_board }}</textarea>
+      </div>
+
+      <div class="q-block">
+        <label class="q-label">4. How do you want the orchestrator to communicate with you?</label>
+        <span class="q-hint">Length, format, tone, what to skip.</span>
+        <textarea name="q_comms" rows="2" required placeholder="Short declarative statements. Conclusions first. No preamble. No bullet-point hedging.">{{ prefill.q_comms }}</textarea>
+      </div>
+
+      <div class="q-block">
+        <label class="q-label">5. What is the current highest-priority area where the orchestrator should bias its dispatch decisions?</label>
+        <span class="q-hint">Where should it spend the most cycles right now?</span>
+        <textarea name="q_priority" rows="2" required placeholder="Operating model definition and Maine licensing — everything else is secondary until that's resolved.">{{ prefill.q_priority }}</textarea>
+      </div>
+
+      <div class="q-block">
+        <label class="q-label">6. What distinguishes a blocker (interrupt me now) from an FYI (put it in the digest)?</label>
+        <span class="q-hint">Calibrates when the orchestrator escalates vs. batches.</span>
+        <textarea name="q_escalation" rows="2" required placeholder="Blocker: anything that stops Priority 1 or 2 moving forward. FYI: everything else.">{{ prefill.q_escalation }}</textarea>
+      </div>
+
+      <div class="q-block">
+        <label class="q-label">7. Anything else about how the orchestrator should behave? (optional)</label>
+        <textarea name="q_other" rows="2" placeholder="e.g. never make decisions Riley hasn't confirmed, always surface cost before dispatching expensive board sessions…">{{ prefill.q_other }}</textarea>
+      </div>
+
+      <div class="submit-row">
+        <button type="submit">Generate charter →</button>
+        <span class="hint">A background job writes <code>orchestrator-charter.md</code>. You'll be taken to the job page to watch it run.</span>
+      </div>
+    </form>
+  </div>
+
+</section>
+{% endblock %}

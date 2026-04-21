@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — {{ company.name }}{% endblock %}
+
+{% block content %}
+<p><a href="{{ back_url }}">{{ back_label }}</a></p>
+<h1>{{ artifact.name }}</h1>
+<div class="muted small mono">{{ artifact.rel_path }} · {{ artifact.size }} B · {{ artifact.mtime }}</div>
+
+<article class="md panel">
+  {{ artifact.text | markdown | safe }}
+</article>
+
+<details class="panel">
+  <summary>raw source</summary>
+  <pre class="code small">{{ artifact.text }}</pre>
+</details>
+{% endblock %}

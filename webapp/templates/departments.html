@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Departments — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Departments</h1>
+<p class="muted">{{ departments|length }} departments configured for {{ company.name }}.</p>
+
+{% if departments %}
+<div class="dept-grid">
+  {% for d in departments %}
+  <div class="dept-card">
+    <h2><a href="{{ url_for('department_detail', slug=slug, dept_name=d.name) }}">{{ d.display_name }}</a></h2>
+    <div class="muted small mono">{{ d.name }}</div>
+    <div class="badges">
+      {% if d.onboarded %}<span class="badge ok">onboarded</span>{% endif %}
+      {% if d.manager_memory_exists %}<span class="badge ok">memory</span>{% else %}<span class="badge warn">no memory</span>{% endif %}
+      {% if d.has_setup_checklist %}<span class="badge ok">checklist</span>{% endif %}
+    </div>
+    <h3>Specialists ({{ d.specialist_count }})</h3>
+    <ul class="tight">
+      {% for s in d.specialists %}
+      <li><strong>{{ s.name }}</strong> <span class="muted">— {{ s.attribute }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">No departments configured.</div>
+{% endif %}
+{% endblock %}

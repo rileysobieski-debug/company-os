@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}A/B compare — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .cmp-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  .cmp-header h1 { margin: 0; }
+  .cmp-header .meta { color: #6b7280; font-size: 13px; }
+  .cmp-brief { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; }
+  .cmp-brief .label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; font-weight: 600; }
+  .cmp-brief .text { font-size: 13px; color: #111; }
+
+  .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .col {
+    background: #fff; border: 2px solid #e5e7eb; border-radius: 10px; padding: 16px;
+    min-height: 400px; display: flex; flex-direction: column;
+  }
+  .col.a { border-color: #bfdbfe; }
+  .col.b { border-color: #fbcfe8; }
+  .col .slot-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .col.a .slot-label { color: #1e40af; }
+  .col.b .slot-label { color: #9d174d; }
+  .col .scenario { font-size: 15px; font-weight: 600; color: #111; margin-bottom: 4px; }
+  .col .job-link { font-size: 11px; margin-top: 4px; }
+  .col .job-link a { font-family: ui-monospace, monospace; color: #6b7280; }
+  .col .status { font-size: 11px; padding: 2px 8px; border-radius: 999px; display: inline-block; margin-top: 4px; }
+  .col .status.running { background: #fef3c7; color: #92400e; }
+  .col .status.done { background: #d1fae5; color: #065f46; }
+  .col .status.error { background: #fee2e2; color: #991b1b; }
+
+  .col .summary-block {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-left: 3px solid #2563eb; border-radius: 6px;
+    padding: 10px 12px; margin: 10px 0;
+  }
+  .col .summary-block .label { font-size: 10px; color: #1e40af; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; font-weight: 600; }
+  .col .summary-block .plain { color: #1e293b; font-size: 13px; line-height: 1.5; }
+  .col .actions-block {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 3px solid #16a34a; border-radius: 6px;
+    padding: 10px 12px; margin: 8px 0;
+  }
+  .col .actions-block .label { font-size: 10px; color: #14532d; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; font-weight: 600; }
+  .col .actions-block ul { margin: 2px 0 0; padding-left: 18px; color: #166534; font-size: 12.5px; }
+  .col .full-output {
+    flex-grow: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px;
+    font-size: 12px; color: #374151; line-height: 1.5; white-space: pre-wrap;
+    max-height: 520px; overflow-y: auto; margin-top: 10px;
+  }
+  .col .placeholder { color: #9ca3af; font-style: italic; padding: 40px 20px; text-align: center; }
+
+  .verdict-bar {
+    margin-top: 22px; background: #0f172a; border-radius: 10px; padding: 20px; color: #e5e7eb;
+  }
+  .verdict-bar h2 { margin: 0 0 12px; color: #fff; font-size: 16px; }
+  .verdict-bar .options { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .verdict-bar .options label {
+    background: #1e293b; border: 2px solid #334155; border-radius: 8px; padding: 14px;
+    cursor: pointer; text-align: center; transition: all .15s ease;
+  }
+  .verdict-bar .options input[type=radio] { display: none; }
+  .verdict-bar .options input[type=radio]:checked + label { background: #2563eb; border-color: #60a5fa; }
+  .verdict-bar .options label .v { font-size: 18px; font-weight: 700; }
+  .verdict-bar .options label .sub { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .verdict-bar .options input[type=radio]:checked + label .sub { color: #dbeafe; }
+  .verdict-bar textarea {
+    width: 100%; padding: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    color: #e5e7eb; font-size: 12.5px; font-family: inherit; box-sizing: border-box;
+    min-height: 60px; resize: vertical;
+  }
+  .verdict-bar button {
+    background: #2563eb; color: #fff; border: none; padding: 10px 22px; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 12px;
+  }
+  .verdict-bar button:hover { background: #1d4ed8; }
+
+  .already-judged {
+    background: #d1fae5; color: #065f46; padding: 10px 14px; border-radius: 8px;
+    border: 1px solid #10b981; font-size: 13px; margin-top: 18px;
+  }
+  .already-judged strong { font-weight: 600; }
+</style>
+{% if (run_a and not run_a.full_output) or (run_b and not run_b.full_output) %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="cmp-header">
+    <div>
+      <h1>A/B compare</h1>
+      <p class="meta">Pair <code>{{ pair_id }}</code> · <a href="{{ url_for('ledger_pairs', slug=slug) }}">all pairs</a></p>
+    </div>
+  </div>
+
+  {% if run_a %}
+  <div class="cmp-brief">
+    <div class="label">Brief (same for both)</div>
+    <div class="text">{{ run_a.brief }}</div>
+  </div>
+  {% endif %}
+
+  <div class="side-by-side">
+    {% for col, label in [(run_a, 'A'), (run_b, 'B')] %}
+    <div class="col {{ label.lower() }}">
+      <div class="slot-label">Option {{ label }}</div>
+      {% if col %}
+      <div class="scenario">{{ col.scenario_name }}</div>
+      {% if col.completed_at %}
+      <span class="status done">✓ done</span>
+      {% elif col.job_id %}
+      <span class="status running">running…</span>
+      {% endif %}
+      {% if col.job_id %}
+      <div class="job-link"><a href="{{ url_for('job_detail', slug=slug, job_id=col.job_id) }}">{{ col.job_id }}</a></div>
+      {% endif %}
+
+      {% if col.plain_summary %}
+      <div class="summary-block">
+        <div class="label">Plain-English summary</div>
+        <div class="plain">{{ col.plain_summary }}</div>
+      </div>
+      {% endif %}
+      {% if col.action_items %}
+      <div class="actions-block">
+        <div class="label">Action items</div>
+        <ul>{% for a in col.action_items %}<li>{{ a }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      {% if col.full_output %}
+      <div class="full-output">{{ col.full_output }}</div>
+      {% elif col.outcome_summary %}
+      <div class="full-output">{{ col.outcome_summary }}</div>
+      {% else %}
+      <div class="placeholder">Dispatch still running… this page auto-refreshes every 5s.</div>
+      {% endif %}
+      {% else %}
+      <div class="placeholder">Slot missing.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% set both_ready = run_a and run_b and (run_a.full_output or run_a.outcome_summary) and (run_b.full_output or run_b.outcome_summary) %}
+  {% set verdict = (run_a.pair_verdict if run_a else '') %}
+
+  {% if both_ready and not verdict %}
+  <form class="verdict-bar" method="POST" action="{{ url_for('ledger_compare_pick', slug=slug, pair_id=pair_id) }}">
+    <h2>Which response is better?</h2>
+    <div class="options">
+      <input type="radio" name="winner" id="w-a" value="a" required>
+      <label for="w-a"><div class="v">A</div><div class="sub">Option A is better</div></label>
+      <input type="radio" name="winner" id="w-tie" value="tie">
+      <label for="w-tie"><div class="v">Tie</div><div class="sub">Both equally good / bad</div></label>
+      <input type="radio" name="winner" id="w-b" value="b">
+      <label for="w-b"><div class="v">B</div><div class="sub">Option B is better</div></label>
+    </div>
+    <textarea name="notes" placeholder="Why? (optional — one sentence is plenty)"></textarea>
+    <button type="submit">Record verdict →</button>
+  </form>
+  {% elif verdict %}
+  <div class="already-judged">
+    <strong>Verdict recorded:</strong>
+    {% if verdict == 'a' %}Option A preferred.
+    {% elif verdict == 'b' %}Option B preferred.
+    {% else %}Tie.{% endif %}
+    {% if run_a.rating_notes %}<br><em>{{ run_a.rating_notes }}</em>{% endif %}
+    · <a href="{{ url_for('ledger_page', slug=slug) }}">back to ledger</a>
+  </div>
+  {% else %}
+  <div class="verdict-bar" style="background:#fef3c7;color:#78350f;">
+    <h2 style="color:#78350f;">Waiting for both runs to complete…</h2>
+    <p style="font-size:12.5px;margin:0;">Page auto-refreshes every 5s. You'll be able to pick a winner once both sides finish.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

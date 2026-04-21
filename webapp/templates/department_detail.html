@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ dept.display_name }} — {{ company.name }}{% endblock %}
+
+{% block content %}
+<p><a href="{{ url_for('departments_page', slug=slug) }}">← All departments</a></p>
+<h1>{{ dept.display_name }}</h1>
+<div class="muted small mono">{{ dept.dept_dir }}</div>
+
+<section class="panel">
+  <h2>Charter</h2>
+  <div class="md">{{ dept.charter_body | markdown | safe }}</div>
+</section>
+
+{% if dept.manager_memory %}
+<section class="panel">
+  <h2>Manager memory</h2>
+  <div class="md">{{ dept.manager_memory | markdown | safe }}</div>
+</section>
+{% endif %}
+
+{% if dept.setup_checklist %}
+<section class="panel">
+  <h2>Setup checklist</h2>
+  <div class="md">{{ dept.setup_checklist | markdown | safe }}</div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Specialists ({{ dept.specialists|length }})</h2>
+  {% for s in dept.specialists %}
+  <div class="specialist-card">
+    <h3>{{ s.name }} <span class="muted small">{{ s.attribute }}{% if s.is_scout %} · scout{% endif %}</span></h3>
+    <p>{{ s.description }}</p>
+    {% if s.tools %}<div class="muted small">tools: {% for t in s.tools %}<code>{{ t }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+    {% if s.memory_exists %}
+    <details>
+      <summary>memory</summary>
+      <div class="md">{{ s.memory | markdown | safe }}</div>
+    </details>
+    {% endif %}
+    <details>
+      <summary>prompt body preview</summary>
+      <pre class="code small">{{ s.prompt_body_preview }}</pre>
+    </details>
+  </div>
+  {% endfor %}
+</section>
+
+{% if dept.demo_artifact %}
+<section class="panel">
+  <h2>Demo artifact</h2>
+  <p class="muted small mono">{{ dept.demo_artifact_path }}</p>
+  <div class="md">{{ dept.demo_artifact | markdown | safe }}</div>
+</section>
+{% else %}
+<section class="panel">
+  <h2>Demo artifact</h2>
+  <div class="empty small">No demo artifact yet. <a href="{{ url_for('run_page', slug=slug) }}">Run a demo →</a></div>
+</section>
+{% endif %}
+{% endblock %}

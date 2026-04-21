@@ -1,0 +1,32 @@
+skill_id: kb-retriever
+description: >
+  Retrieves relevant passages from the company knowledge base by keyword
+  or semantic query. Agentic — combines grep and Glob traversal; does
+  not fabricate passages that are not on disk.
+mode: agentic
+tools:
+  - Read
+  - Glob
+  - Grep
+max_tool_iterations: 5
+max_tokens: 4096
+model: claude-haiku-4-5-20251001
+inputs:
+  - query
+  - departments
+outputs:
+  - passages
+  - sources
+benchmarks_yaml_path: skills/benchmarks/kb-retriever.yaml
+# synthesis_difficulty=high when the caller asks for a cross-document
+# synthesis (not just passage retrieval). Default "low" keeps straight
+# retrieval on haiku.
+synthesis_difficulty: low
+rubric: |
+  Pass conditions:
+    - Every returned passage is verbatim from a sourced file path.
+    - Sources list covers every passage (no orphans).
+    - Empty result returned when the KB has no matches — no hallucination.
+  Fail conditions:
+    - Any passage text that does not appear literally on disk.
+    - Source paths that do not resolve under the vault.

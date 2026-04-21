@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Scenario ledger — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .ledger-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+  .ledger-header h1 { margin: 0; }
+  .stats-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 14px; text-align: center; min-width: 80px; }
+  .stat .n { font-size: 20px; font-weight: 600; color: #111; }
+  .stat .l { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
+
+  .dept-avgs { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; margin: 8px 0 20px; font-size: 13px; }
+  .dept-avgs .dept-pill { display: inline-block; background: #f3f4f6; border-radius: 999px; padding: 3px 10px; margin-right: 6px; font-size: 12px; color: #374151; }
+  .dept-avgs .dept-pill.pos { background: #ecfccb; color: #3f6212; }
+  .dept-avgs .dept-pill.neg { background: #fee2e2; color: #991b1b; }
+
+  .run-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px;
+    margin-bottom: 10px; display: grid;
+    grid-template-columns: 140px 1fr 200px; gap: 18px; align-items: start;
+  }
+  .run-card.rated-pos { border-left: 4px solid #65a30d; }
+  .run-card.rated-neg { border-left: 4px solid #dc2626; }
+  .run-card.rated-zero { border-left: 4px solid #9ca3af; }
+  .run-card.unrated { border-left: 4px solid #f59e0b; }
+
+  .run-meta .dept { font-size: 11px; color: #1e40af; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+  .run-meta .scenario { font-size: 15px; font-weight: 600; color: #111; margin-top: 4px; }
+  .run-meta .ts { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .run-meta .status { font-size: 11px; margin-top: 4px; font-weight: 500; }
+  .run-meta .status.complete { color: #166534; }
+  .run-meta .status.pending { color: #a16207; }
+
+  .run-body { font-size: 13px; color: #374151; line-height: 1.4; }
+  .run-body .brief { max-height: 70px; overflow: hidden; position: relative; color: #6b7280; font-style: italic; font-size: 12px; padding-bottom: 8px; border-bottom: 1px dashed #e5e7eb; margin-bottom: 10px; }
+  .run-body details summary { font-size: 12px; color: #6b7280; cursor: pointer; margin-top: 6px; }
+  .run-body .outcome { margin-top: 8px; padding: 8px 10px; background: #f9fafb; border-radius: 6px; border-left: 2px solid #cbd5e1; font-size: 12px; color: #374151; white-space: pre-wrap; }
+  .run-body .outcome .label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+  .run-body .notes { margin-top: 8px; padding: 6px 10px; background: #fefce8; border-radius: 6px; font-size: 12px; color: #78350f; }
+  .run-body .summary-block { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 3px solid #2563eb; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .run-body .summary-block .label { font-size: 10px; color: #1e40af; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; font-weight: 600; }
+  .run-body .summary-block .plain { color: #1e293b; font-size: 13px; line-height: 1.5; }
+  .run-body .actions-block { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 3px solid #16a34a; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .run-body .actions-block .label { font-size: 10px; color: #14532d; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; font-weight: 600; }
+  .run-body .actions-block ul { margin: 2px 0 0; padding-left: 18px; color: #166534; font-size: 12.5px; }
+  .run-body .actions-block li { margin-bottom: 3px; }
+  .run-body .flags-block { background: #fef2f2; border: 1px solid #fecaca; border-left: 3px solid #dc2626; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
+  .run-body .flags-block .label { font-size: 10px; color: #991b1b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; font-weight: 600; }
+  .run-body .flags-block ul { margin: 2px 0 0; padding-left: 18px; color: #991b1b; font-size: 12.5px; }
+  .translate-form { display: inline-block; margin-top: 4px; }
+  .translate-form button { background: #2563eb; color: #fff; border: none; padding: 5px 11px; border-radius: 5px; font-size: 11px; cursor: pointer; }
+  .translate-form button:hover { background: #1d4ed8; }
+
+  .rating-form { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+  .rating-form .rating-row { display: flex; gap: 4px; }
+  .rating-form .rating-row label {
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 5px 0; border: 1px solid #cbd5e1;
+    border-radius: 5px; font-weight: 500; min-width: 28px;
+    background: #fff; color: #374151;
+  }
+  .rating-form .rating-row input[type=radio] { display: none; }
+  .rating-form .rating-row input[type=radio]:checked + label { background: #111; color: #fff; border-color: #111; }
+  .rating-form textarea {
+    width: 100%; min-height: 50px; padding: 5px 8px; font-size: 12px; font-family: inherit;
+    border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box;
+  }
+  .rating-form button {
+    background: #111; color: #fff; border: none; border-radius: 5px; padding: 6px 12px;
+    font-size: 12px; cursor: pointer;
+  }
+  .rating-form .current { font-size: 13px; color: #166534; font-weight: 600; }
+
+  .empty-state { background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 28px; text-align: center; color: #6b7280; margin-top: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="ledger-header">
+    <div>
+      <h1>Scenario ledger</h1>
+      <p class="muted">Every <a href="{{ url_for('scenario_page', slug=slug) }}">scenario run</a> and its rating. Newsletter pipeline reads from here.</p>
+      <p class="muted" style="font-size:12px;">
+        Export:
+        <a href="{{ url_for('ledger_export_md', slug=slug) }}">rated-only digest (.md)</a> ·
+        <a href="{{ url_for('ledger_export_md', slug=slug, include_unrated=1) }}">all runs (.md)</a> ·
+        <a href="{{ url_for('ledger_export_json', slug=slug) }}">raw JSON</a>
+      </p>
+      <form method="POST" action="{{ url_for('ledger_translate_all', slug=slug) }}" style="margin-top:4px;">
+        <button type="submit" style="background:#2563eb;color:#fff;border:none;padding:6px 14px;border-radius:5px;font-size:12px;cursor:pointer;">Translate all untranslated runs →</button>
+        <span style="font-size:11px;color:#6b7280;margin-left:6px;">Runs Haiku over every un-summarized scenario. Cheap.</span>
+        <a href="{{ url_for('ledger_pairs', slug=slug) }}" style="margin-left:14px;font-size:12px;">A/B pairs →</a>
+      </form>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="n">{{ runs|length }}</div><div class="l">runs</div></div>
+      <div class="stat"><div class="n">{{ stats.count or 0 }}</div><div class="l">rated</div></div>
+      <div class="stat"><div class="n">{{ '{0:+.2f}'.format(stats.avg) if stats.avg is defined else '—' }}</div><div class="l">avg rating</div></div>
+    </div>
+  </div>
+
+  {% if stats.by_dept %}
+  <div class="dept-avgs">
+    <strong style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;">By department:</strong>
+    {% for dept, avg in stats.by_dept.items() %}
+      <span class="dept-pill {% if avg > 0 %}pos{% elif avg < 0 %}neg{% endif %}">{{ dept }}: {{ '{0:+.1f}'.format(avg) }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not runs %}
+  <div class="empty-state">
+    <p>No scenarios yet.</p>
+    <p><small>Run one from the <a href="{{ url_for('scenario_page', slug=slug) }}">scenario page</a>. It'll appear here after dispatch completes.</small></p>
+  </div>
+  {% else %}
+    {% for run in runs %}
+    <div class="run-card {% if run.is_rated %}{% if run.rating > 0 %}rated-pos{% elif run.rating < 0 %}rated-neg{% else %}rated-zero{% endif %}{% else %}unrated{% endif %}">
+      <div class="run-meta">
+        <div class="dept">{{ run.dept }}</div>
+        <div class="scenario">{{ run.scenario_name }}</div>
+        <div class="ts">{{ run.started_at[:19].replace('T', ' ') }}</div>
+        <div class="status {% if run.is_complete %}complete{% else %}pending{% endif %}">
+          {% if run.is_complete %}✓ complete{% else %}⋯ pending{% endif %}
+        </div>
+        {% if run.pair_id %}
+        <div class="ts" style="margin-top:4px;">
+          <a href="{{ url_for('ledger_compare', slug=slug, pair_id=run.pair_id) }}" style="background:{% if run.pair_slot == 'a' %}#dbeafe;color:#1e40af{% else %}#fce7f3;color:#9d174d{% endif %};padding:1px 8px;border-radius:999px;font-size:10px;font-weight:600;text-decoration:none;">slot {{ run.pair_slot|upper }}</a>
+          {% if run.pair_verdict %}
+          <span style="font-size:10px;color:#6b7280;margin-left:2px;">
+            {% if run.pair_verdict == run.pair_slot %}✓ won
+            {% elif run.pair_verdict == 'tie' %}= tie
+            {% else %}✗ lost{% endif %}
+          </span>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if run.job_id %}
+        <div class="ts"><a href="{{ url_for('job_detail', slug=slug, job_id=run.job_id) }}">job log →</a></div>
+        {% endif %}
+      </div>
+
+      <div class="run-body">
+        <div class="brief">{{ run.brief }}</div>
+
+        {% if run.plain_summary %}
+        <div class="summary-block">
+          <div class="label">In plain English</div>
+          <div class="plain">{{ run.plain_summary }}</div>
+        </div>
+        {% endif %}
+
+        {% if run.action_items %}
+        <div class="actions-block">
+          <div class="label">What you can do this week</div>
+          <ul>
+            {% for a in run.action_items %}<li>{{ a }}</li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if run.flags %}
+        <div class="flags-block">
+          <div class="label">Flags & uncertainties</div>
+          <ul>
+            {% for f in run.flags %}<li>{{ f }}</li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if not run.plain_summary and (run.full_output or run.outcome_summary) %}
+        <form class="translate-form" method="POST" action="{{ url_for('ledger_translate', slug=slug, run_id=run.id) }}">
+          <button type="submit" title="Uses Haiku to produce a plain-English summary + action items">Translate for me →</button>
+        </form>
+        {% endif %}
+
+        {% if run.full_output %}
+        <div style="margin-top:10px;">
+          <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;font-weight:600;">Full agent output</div>
+          <div class="outcome" style="max-height:520px;overflow-y:auto;">{{ run.full_output }}</div>
+        </div>
+        {% elif run.outcome_summary %}
+        <div style="margin-top:10px;">
+          <div style="font-size:10px;color:#b45309;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;font-weight:600;">Preview only (run pre-dates full-output capture)</div>
+          <div class="outcome">{{ run.outcome_summary }}</div>
+        </div>
+        {% endif %}
+
+        {% if run.rating_notes %}
+        <div class="notes"><strong>Notes:</strong> {{ run.rating_notes }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        {% if run.is_rated %}
+        <div class="current">Rated: {{ '{0:+d}'.format(run.rating) }}</div>
+        <details style="margin-top:6px;">
+          <summary style="font-size:11px;color:#6b7280;cursor:pointer;">re-rate</summary>
+          <form class="rating-form" method="POST" action="{{ url_for('ledger_rate', slug=slug, run_id=run.id) }}" style="margin-top:8px;">
+            <div class="rating-row">
+              {% for v in [-2, -1, 0, 1, 2] %}
+              <input type="radio" name="rating" id="r-{{ run.id }}-{{ v }}" value="{{ v }}" {% if v == run.rating %}checked{% endif %}/>
+              <label for="r-{{ run.id }}-{{ v }}">{{ '{0:+d}'.format(v) }}</label>
+              {% endfor %}
+            </div>
+            <textarea name="notes" placeholder="Why? (optional)">{{ run.rating_notes }}</textarea>
+            <button type="submit">Update →</button>
+          </form>
+        </details>
+        {% else %}
+        <form class="rating-form" method="POST" action="{{ url_for('ledger_rate', slug=slug, run_id=run.id) }}">
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Rate this run</div>
+          <div class="rating-row">
+            {% for v in [-2, -1, 0, 1, 2] %}
+            <input type="radio" name="rating" id="r-{{ run.id }}-{{ v }}" value="{{ v }}"/>
+            <label for="r-{{ run.id }}-{{ v }}">{{ '{0:+d}'.format(v) }}</label>
+            {% endfor %}
+          </div>
+          <textarea name="notes" placeholder="Why? (optional)"></textarea>
+          <button type="submit">Rate →</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

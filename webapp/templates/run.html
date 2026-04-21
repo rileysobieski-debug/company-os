@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Run — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Run an action</h1>
+<p class="muted">All actions execute on a background thread. You'll be redirected to a job page that auto-refreshes.</p>
+
+<section class="panel">
+  <h2>Dispatch a department manager</h2>
+  <p class="muted small">Sends a brief to a manager, who delegates to specialists and returns a synthesized response.</p>
+  <form method="POST" action="{{ url_for('run_dispatch', slug=slug) }}">
+    <label>Department
+      <select name="dept" required>
+        {% for d in departments %}
+        <option value="{{ d.name }}">{{ d.display_name }} ({{ d.specialist_count }} specialists)</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Brief
+      <textarea name="brief" rows="6" placeholder="What do you need from this department?" required></textarea>
+    </label>
+    <button class="btn primary" type="submit">Dispatch</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Convene the board</h2>
+  <p class="muted small">Six-voice deliberation. Orchestrator silently observes and writes a structured summary to <code>board/meetings/</code>.</p>
+  <form method="POST" action="{{ url_for('run_board', slug=slug) }}">
+    <label>Topic
+      <textarea name="topic" rows="4" placeholder="What should the board deliberate?" required></textarea>
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="include_dossier" checked/>
+      Include department dossier (lets board members reference recent dept work)
+    </label>
+    <button class="btn primary" type="submit">Convene</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Run the full demo</h2>
+  <p class="muted small">8 departments → orchestrator synthesis → board deliberation. Heavy. Takes minutes.</p>
+  <form method="POST" action="{{ url_for('run_full_demo', slug=slug) }}">
+    <label>Limit to departments (comma-separated, optional)
+      <input type="text" name="only_depts" placeholder="finance,operations,marketing"/>
+    </label>
+    <label class="checkbox"><input type="checkbox" name="force"/> Force regenerate (overwrite existing)</label>
+    <label class="checkbox"><input type="checkbox" name="skip_synthesis"/> Skip orchestrator synthesis</label>
+    <label class="checkbox"><input type="checkbox" name="skip_board"/> Skip board deliberation</label>
+    <button class="btn primary" type="submit">Run full demo</button>
+  </form>
+</section>
+{% endblock %}

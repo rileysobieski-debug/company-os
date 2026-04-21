@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Board — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Board</h1>
+<p class="muted">Six-voice advisory board. The orchestrator silently observes and writes a summary after each meeting.</p>
+
+<section class="panel">
+  <h2>Members</h2>
+  <div class="board-grid">
+    {% for p in profiles %}
+    <div class="board-card">
+      <h3>{{ p.role }}</h3>
+      {% if p.exists %}
+      <details>
+        <summary>profile</summary>
+        <div class="md">{{ p.body | markdown | safe }}</div>
+      </details>
+      {% else %}
+      <div class="empty small">No profile yet (run onboarding).</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Meetings</h2>
+  {% if meetings %}
+  <ul class="meeting-list">
+    {% for m in meetings %}
+    <li>
+      <a href="{{ url_for('board_meeting', slug=slug, filename=m.name) }}">
+        <strong>{{ m.title }}</strong>
+      </a>
+      <div class="muted small">{{ m.mtime }} · {{ m.name }}</div>
+      <div class="snippet">{{ m.snippet[:300] }}{% if m.snippet|length > 300 %}…{% endif %}</div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty">No board meetings yet. <a href="{{ url_for('run_page', slug=slug) }}">Convene one →</a></div>
+  {% endif %}
+</section>
+{% endblock %}

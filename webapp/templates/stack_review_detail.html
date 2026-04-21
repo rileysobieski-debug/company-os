@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Stack review {{ review.id }} — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .sr-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; gap: 16px; }
+  .sr-head h1 { margin: 0; font-size: 22px; }
+  .sr-head .back { font-size: 13px; color: #6b7280; text-decoration: none; }
+  .sr-head .back:hover { color: #111; }
+
+  .summary-card {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px;
+    margin-bottom: 14px;
+  }
+  .summary-card h2 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #1e3a8a; font-weight: 600; }
+  .summary-card p { margin: 0; font-size: 14px; color: #111; line-height: 1.55; }
+
+  .gaps-card {
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px 18px;
+    margin-bottom: 18px;
+  }
+  .gaps-card h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #991b1b; font-weight: 600; }
+  .gaps-card ul { margin: 0; padding-left: 18px; font-size: 13px; color: #7f1d1d; }
+  .gaps-card li { margin-bottom: 4px; line-height: 1.5; }
+
+  .proposal {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 20px;
+    margin-bottom: 14px;
+  }
+  .proposal.accepted { border-left: 4px solid #10b981; background: #f0fdf4; }
+  .proposal.rejected { border-left: 4px solid #dc2626; opacity: .75; }
+  .proposal.deferred { border-left: 4px solid #f59e0b; }
+
+  .proposal .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 8px; }
+  .proposal .title { font-size: 15px; font-weight: 600; color: #111; }
+  .proposal .kind-pill {
+    display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    padding: 2px 9px; border-radius: 999px; margin-right: 8px; font-weight: 600;
+  }
+  .kind-pill.new_department { background: #dbeafe; color: #1e40af; }
+  .kind-pill.consolidation { background: #f3e8ff; color: #6b21a8; }
+  .kind-pill.termination { background: #fee2e2; color: #991b1b; }
+  .kind-pill.orchestrator_amendment { background: #fef3c7; color: #78350f; }
+
+  .status-pill {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    padding: 2px 9px; border-radius: 999px; font-weight: 600; white-space: nowrap;
+  }
+  .status-pill.proposed { background: #f3f4f6; color: #374151; }
+  .status-pill.accepted { background: #d1fae5; color: #065f46; }
+  .status-pill.rejected { background: #fee2e2; color: #991b1b; }
+  .status-pill.deferred { background: #fef3c7; color: #78350f; }
+
+  .proposal .rationale {
+    font-size: 13px; color: #374151; line-height: 1.55; margin: 6px 0 10px;
+  }
+  .proposal .details {
+    background: #f9fafb; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #374151;
+    margin-top: 8px;
+  }
+  .proposal .details .field { margin-bottom: 4px; }
+  .proposal .details .label { font-weight: 600; color: #111; }
+  .proposal .details ul { margin: 2px 0 0; padding-left: 18px; }
+
+  .actions { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .actions form { display: inline-flex; gap: 6px; align-items: center; }
+  .actions button {
+    border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px;
+    cursor: pointer; font-weight: 500;
+  }
+  .actions button.accept { background: #10b981; color: #fff; }
+  .actions button.accept:hover { background: #059669; }
+  .actions button.reject { background: #dc2626; color: #fff; }
+  .actions button.reject:hover { background: #b91c1c; }
+  .actions button.defer { background: #f59e0b; color: #fff; }
+  .actions button.defer:hover { background: #d97706; }
+  .actions input[type=text] {
+    padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 5px;
+    font-size: 12px; min-width: 180px;
+  }
+
+  .impl-notes {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+    padding: 8px 12px; font-size: 12px; color: #065f46; margin-top: 8px;
+  }
+  .impl-notes strong { font-weight: 600; }
+
+  .aside-links { font-size: 11px; color: #9ca3af; margin-top: 14px; }
+  .aside-links a { color: #1e40af; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="sr-head">
+    <div>
+      <h1>Stack review — {{ review.id }}</h1>
+      <p class="muted">Created {{ review.created_at[:19].replace('T', ' ') }} · {{ review.corpus_summary.get('dept_count', 0) }} departments reviewed · {{ review.proposals|length }} proposals</p>
+    </div>
+    <a href="{{ url_for('stack_review_index', slug=slug) }}" class="back">← All reviews</a>
+  </div>
+
+  {% if review.notes %}
+  <div class="summary-card">
+    <h2>Executive summary</h2>
+    <p>{{ review.notes }}</p>
+  </div>
+  {% endif %}
+
+  {% if review.gaps %}
+  <div class="gaps-card">
+    <h2>Gaps surfaced</h2>
+    <ul>
+      {% for g in review.gaps %}
+      <li>{{ g }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <h2 style="font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin:22px 0 10px;">Proposals</h2>
+
+  {% if not review.proposals %}
+  <div style="background:#f9fafb;border:1px dashed #e5e7eb;border-radius:8px;padding:30px;text-align:center;color:#6b7280;">
+    <p>No proposals surfaced. The Board considered the stack coherent as-is.</p>
+  </div>
+  {% endif %}
+
+  {% for p in review.proposals %}
+  <div class="proposal {{ p.status }}">
+    <div class="head">
+      <div>
+        <span class="kind-pill {{ p.kind }}">{{ p.kind|replace('_', ' ') }}</span>
+        <span class="title">{{ p.title }}</span>
+      </div>
+      <span class="status-pill {{ p.status }}">{{ p.status }}</span>
+    </div>
+
+    <div class="rationale">{{ p.rationale }}</div>
+
+    {% if p.kind == 'new_department' %}
+    <div class="details">
+      <div class="field"><span class="label">Proposed name:</span> <code>{{ p.proposed_dept_name }}</code></div>
+      {% if p.proposed_dept_owns %}
+      <div class="field"><span class="label">OWNS:</span>
+        <ul>{% for t in p.proposed_dept_owns %}<li>{{ t }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if p.proposed_dept_never %}
+      <div class="field"><span class="label">NEVER:</span>
+        <ul>{% for t in p.proposed_dept_never %}<li>{{ t }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      <div class="field" style="font-size:11px;color:#6b7280;margin-top:6px;">
+        <em>On accept: a dormant dept stub is created and a arrival note is auto-dispatched so it's ready when you visit the new dept's onboarding page.</em>
+      </div>
+    </div>
+    {% elif p.kind == 'consolidation' and p.consolidation_depts %}
+    <div class="details">
+      <div class="field"><span class="label">Consolidate:</span> {{ p.consolidation_depts|join(' + ') }}</div>
+      <div class="field" style="font-size:11px;color:#6b7280;margin-top:6px;">
+        <em>On accept: the decision is logged but the actual merge is manual — sensitive enough to require your direct action.</em>
+      </div>
+    </div>
+    {% elif p.kind == 'termination' and p.termination_dept %}
+    <div class="details">
+      <div class="field"><span class="label">Terminate:</span> <code>{{ p.termination_dept }}</code></div>
+      <div class="field" style="font-size:11px;color:#6b7280;margin-top:6px;">
+        <em>On accept: the decision is logged but removing the dept is manual.</em>
+      </div>
+    </div>
+    {% elif p.kind == 'orchestrator_amendment' and p.orchestrator_delta %}
+    <div class="details">
+      <div class="field"><span class="label">Delta:</span> {{ p.orchestrator_delta }}</div>
+      <div class="field" style="font-size:11px;color:#6b7280;margin-top:6px;">
+        <em>On accept: this delta is appended as a dated amendment block to <code>orchestrator-charter.md</code>.</em>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if p.implementation_notes %}
+    <div class="impl-notes"><strong>Implementation:</strong> {{ p.implementation_notes }}</div>
+    {% endif %}
+
+    {% if p.status == 'proposed' %}
+    <div class="actions">
+      <form method="POST" action="{{ url_for('stack_review_action', slug=slug, review_id=review.id, proposal_id=p.id, action='accept') }}">
+        <input type="text" name="notes" placeholder="Optional notes"/>
+        <button type="submit" class="accept">Accept →</button>
+      </form>
+      <form method="POST" action="{{ url_for('stack_review_action', slug=slug, review_id=review.id, proposal_id=p.id, action='defer') }}">
+        <button type="submit" class="defer">Defer</button>
+      </form>
+      <form method="POST" action="{{ url_for('stack_review_action', slug=slug, review_id=review.id, proposal_id=p.id, action='reject') }}">
+        <button type="submit" class="reject">Reject</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <p class="aside-links">
+    Full artifacts:
+    {% if review.board_transcript_path %}
+    <a href="{{ url_for('view_artifact', slug=slug, path=review.board_transcript_path) }}">Board transcript</a> ·
+    {% endif %}
+    <a href="{{ url_for('view_artifact', slug=slug, path='decisions/stack-reviews/' + review.id + '.md') }}">Human-readable review (.md)</a>
+  </p>
+</section>
+{% endblock %}

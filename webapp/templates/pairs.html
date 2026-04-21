@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}A/B pairs — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .pairs-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .pair-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px;
+    margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center;
+  }
+  .pair-card.pending { border-left: 4px solid #f59e0b; }
+  .pair-card.done { border-left: 4px solid #10b981; }
+  .pair-card .name { font-weight: 600; color: #111; font-size: 14px; }
+  .pair-card .dept { color: #1e40af; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  .pair-card .brief { color: #6b7280; font-size: 12px; margin-top: 4px; max-height: 38px; overflow: hidden; }
+  .pair-card .verdict-badge { font-size: 11px; padding: 3px 12px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  .pair-card .verdict-badge.a { background: #dbeafe; color: #1e40af; }
+  .pair-card .verdict-badge.b { background: #fce7f3; color: #9d174d; }
+  .pair-card .verdict-badge.tie { background: #f3f4f6; color: #374151; }
+  .pair-card .verdict-badge.pending { background: #fef3c7; color: #92400e; }
+  .pair-card .cta { padding: 6px 14px; border-radius: 6px; background: #111; color: #fff; text-decoration: none; font-size: 12px; }
+  .empty { background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 28px; text-align: center; color: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="pairs-header">
+    <div>
+      <h1>A/B pairs</h1>
+      <p class="muted">Every pair of runs fired from the same brief. Pending pairs (unjudged) are at top.</p>
+    </div>
+    <a href="{{ url_for('ledger_page', slug=slug) }}" style="padding:8px 14px;background:#f3f4f6;border-radius:6px;text-decoration:none;color:#111;font-size:13px;">← Back to ledger</a>
+  </div>
+
+  {% if not items %}
+  <div class="empty">
+    <p>No A/B pairs yet.</p>
+    <p><small>Fire an A/B pair from the <a href="{{ url_for('scenario_page', slug=slug) }}">scenario page</a> — click "A/B" instead of the normal submit.</small></p>
+  </div>
+  {% else %}
+    {% for item in items %}
+    {% set first = item.runs[0] %}
+    <div class="pair-card {% if item.pending %}pending{% else %}done{% endif %}">
+      <div>
+        <div class="dept">{{ first.dept }}</div>
+        <div class="name">{{ first.scenario_name }}</div>
+        <div class="brief">{{ first.brief }}</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        {% if item.pending %}
+        <span class="verdict-badge pending">awaiting verdict</span>
+        <a class="cta" href="{{ url_for('ledger_compare', slug=slug, pair_id=item.pair_id) }}">Judge →</a>
+        {% else %}
+        {% set v = first.pair_verdict %}
+        <span class="verdict-badge {{ v }}">
+          {% if v == 'a' %}A wins
+          {% elif v == 'b' %}B wins
+          {% else %}tie{% endif %}
+        </span>
+        <a class="cta" style="background:#f3f4f6;color:#111;" href="{{ url_for('ledger_compare', slug=slug, pair_id=item.pair_id) }}">View →</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

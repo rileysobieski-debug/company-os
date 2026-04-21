@@ -1,0 +1,27 @@
+skill_id: calc
+description: >
+  Evaluates arithmetic, financial, and small-scale Python expressions in
+  a sandboxed environment. Agentic — can chain multi-step computations
+  when a single expression is insufficient. Returns a numeric or tabular
+  result with the exact expression evaluated.
+mode: agentic
+tools:
+  - PythonExec  # sandboxed — no filesystem, no network, no imports beyond math/stdlib
+max_tool_iterations: 5
+max_tokens: 2048
+model: claude-haiku-4-5-20251001
+inputs:
+  - expression
+  - variables
+outputs:
+  - value
+  - expression_evaluated
+benchmarks_yaml_path: skills/benchmarks/calc.yaml
+rubric: |
+  Pass conditions:
+    - `value` matches the exact arithmetic/boolean result of the evaluated expression.
+    - `expression_evaluated` echoes the final expression with variables substituted.
+    - Sandbox rejects any attempt to import non-whitelisted modules.
+  Fail conditions:
+    - Off-by-one or precision drift in currency calculations.
+    - Silent fallback to LLM approximation when the sandbox would reject.

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Governance &mdash; {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .gov-header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 14px; }
+  .gov-header h1 { margin: 0; }
+  .gov-header .summary-row {
+    display: flex; gap: 18px; font-size: 12px; color: #6b7280;
+  }
+  .gov-header .summary-row strong { color: #111; font-size: 14px; font-weight: 600; }
+
+  .gov-retrolog-status {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+    padding: 10px 14px; font-size: 12px; margin-bottom: 18px; color: #374151;
+  }
+  .gov-retrolog-status .stale { color: #991b1b; }
+
+  .gov-phase-note {
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+    border-radius: 8px; padding: 12px 16px; font-size: 12.5px; margin-bottom: 22px;
+  }
+
+  .gov-section-h {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: #6b7280; font-weight: 600; margin: 26px 0 10px;
+  }
+
+  .gov-agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+
+  .gov-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .gov-card.high { border-left: 4px solid #10b981; }
+  .gov-card.mid  { border-left: 4px solid #9ca3af; }
+  .gov-card.low  { border-left: 4px solid #dc2626; }
+
+  .gov-card .name { font-weight: 600; color: #111; font-size: 14px; }
+  .gov-card .agent-id { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #6b7280; }
+
+  .gov-card .score-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 2px;
+  }
+  .gov-card .score {
+    font-size: 22px; font-weight: 700; color: #111;
+  }
+  .gov-card .score.neg { color: #dc2626; }
+  .gov-card .score.pos { color: #10b981; }
+
+  .gov-card .meta { font-size: 11px; color: #6b7280; }
+  .gov-card .dormant {
+    display: inline-block; background: #fef3c7; color: #78350f;
+    padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+
+  .gov-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+  .gov-breakdown .b {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 5px;
+    padding: 6px 8px; font-size: 10.5px; text-align: center; color: #4b5563;
+  }
+  .gov-breakdown .b .label { text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: #6b7280; font-size: 9.5px; }
+  .gov-breakdown .b .val { font-weight: 600; color: #111; }
+
+  .gov-empty {
+    background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 10px;
+    padding: 26px; text-align: center; color: #6b7280; font-size: 13px;
+  }
+
+  .gov-decisions-table {
+    width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px;
+  }
+  .gov-decisions-table th {
+    text-align: left; font-size: 10px; text-transform: uppercase;
+    color: #6b7280; font-weight: 600; padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .gov-decisions-table td { padding: 8px 10px; border-top: 1px solid #f1f5f9; vertical-align: top; }
+  .gov-decisions-table .src-human { background: #eff6ff; color: #1e40af; border-radius: 999px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
+  .gov-decisions-table .src-agent { background: #f3e8ff; color: #6b21a8; border-radius: 999px; padding: 1px 8px; font-size: 10px; font-weight: 600; }
+  .gov-decisions-table code { font-size: 11px; }
+
+  .gov-pager { display: flex; gap: 8px; margin-top: 12px; }
+  .gov-pager a, .gov-pager span {
+    padding: 5px 12px; border-radius: 5px; font-size: 12px;
+    background: #fff; border: 1px solid #cbd5e1; color: #334155;
+    text-decoration: none;
+  }
+  .gov-pager a:hover { background: #f9fafb; }
+  .gov-pager span.disabled { color: #9ca3af; }
+
+  .gov-filter { display: inline-flex; gap: 6px; font-size: 12px; margin-left: 10px; }
+  .gov-filter a { padding: 3px 10px; border-radius: 5px; text-decoration: none; background: #f9fafb; border: 1px solid #e5e7eb; color: #374151; }
+  .gov-filter a.active { background: #111; color: #fff; border-color: #111; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="gov-header">
+    <div>
+      <h1>Governance</h1>
+      <p class="muted" style="margin:4px 0 0;font-size:13px;">Phase 1: trust observability + decisions audit. Read-only. No enforcement yet.</p>
+    </div>
+    <div class="summary-row">
+      <div><strong>{{ total_agents }}</strong><br>agents tracked</div>
+      <div><strong>{{ total_samples }}</strong><br>rating samples</div>
+      <div><strong>{% if oldest_sample_at %}{{ oldest_sample_at[:10] }}{% else %}&mdash;{% endif %}</strong><br>oldest sample</div>
+    </div>
+  </div>
+
+  <div class="gov-retrolog-status">
+    <strong>Retro-log heartbeat:</strong>
+    {% if last_retrolog %}
+      last successful write {{ last_retrolog[:19].replace('T', ' ') }} UTC. If this timestamp stops advancing while you're clicking dispatch buttons, check <code>logs/webapp.log</code> for <code>governance.retrolog</code> errors.
+    {% else %}
+      <span class="stale">no decisions recorded yet. Click any onboarding or coordination button to populate the audit log.</span>
+    {% endif %}
+  </div>
+
+  <div class="gov-phase-note">
+    Trust scores below come from the rating signal you've already been leaving: onboarding phase signoffs (-2 to +2), scenario ledger A/B verdicts, and training example ranks. Scores are weighted by a 30-day half-life and anchored by a neutral baseline so a single stale rating can't pin the score at an extreme. Agents with no ratings yet do not appear. This page ships Phase 1 of the full design in <code>~/.claude/plans/how-would-an-agent-quiet-origami.md</code>.
+  </div>
+
+  <div class="gov-section-h">Per-agent trust</div>
+  {% if trust_rows %}
+  <div class="gov-agents">
+    {% for row in trust_rows %}
+      {% set s = row.score %}
+      {% set bucket = 'mid' %}
+      {% if s >= 0.33 %}{% set bucket = 'high' %}{% elif s <= -0.33 %}{% set bucket = 'low' %}{% endif %}
+      <div class="gov-card {{ bucket }}">
+        <div>
+          <div class="name">{{ row.display_name }}</div>
+          <div class="agent-id">{{ row.agent_id }}</div>
+        </div>
+        <div class="score-row">
+          <div class="score {% if s > 0 %}pos{% elif s < 0 %}neg{% endif %}">{{ '%+.2f' | format(row.score) }}</div>
+          <div class="meta">
+            {{ row.sample_count }} sample{% if row.sample_count != 1 %}s{% endif %}
+            {% if row.dormant %}&middot; <span class="dormant">dormant</span>{% endif %}
+          </div>
+        </div>
+        <div class="meta">
+          last sample:
+          {% if row.last_sample_at %}{{ row.last_sample_at[:10] }}{% else %}&mdash;{% endif %}
+        </div>
+        <div class="gov-breakdown">
+          <div class="b">
+            <div class="label">signoff</div>
+            <div class="val">{{ row.breakdown.get('signoff', {}).get('count', 0) }}</div>
+          </div>
+          <div class="b">
+            <div class="label">scenario</div>
+            <div class="val">{{ row.breakdown.get('scenario', {}).get('count', 0) }}</div>
+          </div>
+          <div class="b">
+            <div class="label">training</div>
+            <div class="val">{{ row.breakdown.get('training', {}).get('count', 0) }}</div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="gov-empty">
+    No agents have rating samples yet. Once you sign off on a Phase 1 artifact (with a rating), rate a scenario run, or rank a training example, that agent will appear here with a computed trust score.
+  </div>
+  {% endif %}
+
+  <div class="gov-section-h">
+    Recent decisions (observability)
+    <span class="gov-filter">
+      <a href="{{ url_for('governance_page', slug=slug, source='human') }}" class="{% if source_filter == 'human' %}active{% endif %}">human</a>
+      <a href="{{ url_for('governance_page', slug=slug, source='agent') }}" class="{% if source_filter == 'agent' %}active{% endif %}">agent</a>
+      <a href="{{ url_for('governance_page', slug=slug, source='all') }}" class="{% if source_filter == 'all' %}active{% endif %}">all</a>
+    </span>
+  </div>
+  {% if decisions %}
+  <table class="gov-decisions-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Source</th>
+        <th>Action</th>
+        <th>Agent</th>
+        <th>Route</th>
+        <th>Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in decisions %}
+      <tr>
+        <td style="white-space:nowrap;color:#6b7280;">{{ d.decided_at[:19].replace('T', ' ') }}</td>
+        <td><span class="src-{{ d.source }}">{{ d.source }}</span></td>
+        <td><code>{{ d.action_type }}</code></td>
+        <td>{{ d.agent_id or '&mdash;' | safe }}</td>
+        <td style="color:#6b7280;font-size:11px;">{% if d.founder_trigger_route %}<code>{{ d.founder_trigger_route }}</code>{% else %}&mdash;{% endif %}</td>
+        <td>{{ d.action_summary or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="gov-pager">
+    {% if offset > 0 %}
+      <a href="{{ url_for('governance_page', slug=slug, source=source_filter, offset=(offset - 50) if offset >= 50 else 0) }}">&larr; Newer 50</a>
+    {% else %}
+      <span class="disabled">&larr; Newer 50</span>
+    {% endif %}
+    {% if decisions|length == 50 %}
+      <a href="{{ url_for('governance_page', slug=slug, source=source_filter, offset=offset + 50) }}">Older 50 &rarr;</a>
+    {% else %}
+      <span class="disabled">Older 50 &rarr;</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="gov-empty" style="margin-top:10px;">
+    No decisions recorded for this filter yet.
+    {% if source_filter == 'agent' %}
+      Agent-initiated actions are deferred to a later phase (see plan appendix).
+    {% else %}
+      Click any onboarding, staffing, or coordination button to populate the log.
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

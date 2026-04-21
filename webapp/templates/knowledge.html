@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Knowledge & Brand — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .kb-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 20px; }
+  .kb-header h1 { margin: 0; }
+  .stats-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; text-align: center; min-width: 64px; }
+  .stat .n { font-size: 22px; font-weight: 600; color: #111; }
+  .stat .l { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
+
+  .kb-section { margin-bottom: 40px; }
+  .kb-section h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .kb-section .section-desc { font-size: 12px; color: #6b7280; margin: 0 0 14px; }
+
+  /* verdict badges */
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 500; }
+  .badge-gold       { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+  .badge-acceptable { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+  .badge-reference  { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .badge-anti-exemplar { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+  /* tables */
+  table.kb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.kb-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e5e7eb; color: #6b7280; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  table.kb-table td { padding: 10px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  table.kb-table td.name { font-weight: 500; color: #1f2937; max-width: 200px; word-break: break-word; }
+  table.kb-table td.desc { color: #374151; font-size: 12px; max-width: 320px; }
+  table.kb-table td.tags { color: #6b7280; font-size: 11px; }
+  table.kb-table td.meta { color: #9ca3af; font-size: 11px; white-space: nowrap; }
+
+  /* image grid */
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .image-card { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; }
+  .image-card img { width: 100%; height: 100px; object-fit: cover; display: block; background: #f9fafb; }
+  .image-card .image-card-body { padding: 6px 8px 8px; }
+  .image-card .image-name { font-size: 11px; font-weight: 500; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .image-card .image-desc { font-size: 10px; color: #6b7280; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+  /* upload panels */
+  .upload-panel { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 14px 16px; margin-top: 14px; }
+  .upload-panel summary { cursor: pointer; color: #0369a1; font-weight: 600; font-size: 13px; }
+  .upload-panel form { margin-top: 12px; }
+  .upload-panel label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #0369a1; display: block; margin-bottom: 3px; }
+  .upload-panel input[type=text],
+  .upload-panel select,
+  .upload-panel textarea { width: 100%; padding: 6px 10px; border: 1px solid #bae6fd; border-radius: 5px; box-sizing: border-box; font-size: 13px; font-family: inherit; }
+  .upload-panel input[type=file] { font-size: 13px; }
+  .upload-panel .field { margin-bottom: 10px; }
+  .upload-panel .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .upload-panel .field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .upload-panel button[type=submit] { background: #0369a1; color: #fff; border: none; padding: 7px 16px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-top: 4px; }
+  .upload-panel button[type=submit]:hover { background: #0284c7; }
+  .upload-panel .hint { font-size: 11px; color: #0369a1; margin-left: 10px; }
+
+  .upload-panel-brand { background: #f5f3ff; border-color: #ddd6fe; }
+  .upload-panel-brand summary { color: #5b21b6; }
+  .upload-panel-brand label { color: #5b21b6; }
+  .upload-panel-brand input[type=text],
+  .upload-panel-brand select,
+  .upload-panel-brand textarea { border-color: #ddd6fe; }
+  .upload-panel-brand button[type=submit] { background: #5b21b6; }
+  .upload-panel-brand button[type=submit]:hover { background: #6d28d9; }
+  .upload-panel-brand .hint { color: #5b21b6; }
+
+  .upload-panel-img { background: #fff7ed; border-color: #fed7aa; }
+  .upload-panel-img summary { color: #c2410c; }
+  .upload-panel-img label { color: #c2410c; }
+  .upload-panel-img input[type=text],
+  .upload-panel-img select,
+  .upload-panel-img textarea { border-color: #fed7aa; }
+  .upload-panel-img button[type=submit] { background: #c2410c; }
+  .upload-panel-img button[type=submit]:hover { background: #ea580c; }
+  .upload-panel-img .hint { color: #c2410c; }
+
+  .empty-state { background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 20px; text-align: center; color: #6b7280; font-size: 13px; }
+
+  .flash-ok  { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:13px; }
+  .flash-err { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; padding:10px 14px; margin-bottom:16px; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+
+  <div class="kb-header">
+    <div>
+      <h1>Knowledge &amp; Brand</h1>
+      <p class="muted">Upload documents and images that agents read as brand context and domain knowledge.</p>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="n">{{ voice_entries|length }}</div><div class="l">voice</div></div>
+      <div class="stat"><div class="n">{{ image_entries|length }}</div><div class="l">images</div></div>
+      <div class="stat"><div class="n">{{ kb_docs|length }}</div><div class="l">KB docs</div></div>
+    </div>
+  </div>
+
+  {% if flash_ok %}<div class="flash-ok">{{ flash_ok }}</div>{% endif %}
+  {% if flash_err %}<div class="flash-err">{{ flash_err }}</div>{% endif %}
+
+  {# ── BRAND VOICE ──────────────────────────────────────────────────── #}
+  <div class="kb-section">
+    <h2>Brand Voice</h2>
+    <p class="section-desc">Markdown documents that define tone, style, and exemplar copy. Agents read these as Priority 4 brand claims.</p>
+
+    {% if voice_entries %}
+    <table class="kb-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Verdict</th>
+          <th>Description</th>
+          <th>Tags</th>
+          <th>Added</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in voice_entries %}
+        <tr>
+          <td class="name">{{ e.path.name }}</td>
+          <td>
+            <span class="badge badge-{{ e.verdict }}">{{ e.verdict }}</span>
+          </td>
+          <td class="desc">{{ e.description or '—' }}</td>
+          <td class="tags">{{ e.tags | join(', ') or '—' }}</td>
+          <td class="meta">{{ e.added_at[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No brand voice entries yet. Upload a markdown file below to get started.</div>
+    {% endif %}
+
+    <details class="upload-panel upload-panel-brand">
+      <summary>+ Upload brand voice document</summary>
+      <form method="POST" action="{{ url_for('knowledge_upload_voice', slug=slug) }}" enctype="multipart/form-data">
+        <div class="field">
+          <label>Markdown file (.md)</label>
+          <input type="file" name="file" accept=".md,.txt" required/>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Verdict</label>
+            <select name="verdict" required>
+              <option value="gold">gold — exemplar copy, highest weight</option>
+              <option value="acceptable" selected>acceptable — meets brand standard</option>
+              <option value="reference">reference — context / background</option>
+              <option value="anti-exemplar">anti-exemplar — what NOT to do</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tags (comma-separated)</label>
+            <input type="text" name="tags" placeholder="e.g. tone, coastal, instagram"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Description (one line)</label>
+          <input type="text" name="description" placeholder="e.g. Approved summer campaign copy, rosé launch"/>
+        </div>
+        <button type="submit">Upload voice doc →</button>
+        <span class="hint">File will be saved to brand-db/voice/ and immediately available to agents.</span>
+      </form>
+    </details>
+  </div>
+
+  {# ── BRAND IMAGES ─────────────────────────────────────────────────── #}
+  <div class="kb-section">
+    <h2>Brand Images</h2>
+    <p class="section-desc">Visual references — moodboard images, logo variants, packaging. Stored with a verdict so agents know what's approved.</p>
+
+    {% if image_entries %}
+    <div class="image-grid">
+      {% for e in image_entries %}
+      <div class="image-card">
+        <img src="{{ url_for('knowledge_serve_image', slug=slug, filename=e.path.name) }}"
+             alt="{{ e.description or e.path.name }}"
+             onerror="this.style.display='none'"/>
+        <div class="image-card-body">
+          <div class="image-name" title="{{ e.path.name }}">{{ e.path.name }}</div>
+          <span class="badge badge-{{ e.verdict }}">{{ e.verdict }}</span>
+          {% if e.description %}
+          <div class="image-desc">{{ e.description }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">No brand images yet. Upload a reference image below.</div>
+    {% endif %}
+
+    <details class="upload-panel upload-panel-img">
+      <summary>+ Upload brand image</summary>
+      <form method="POST" action="{{ url_for('knowledge_upload_image', slug=slug) }}" enctype="multipart/form-data">
+        <div class="field">
+          <label>Image file (jpg, png, gif, webp, svg)</label>
+          <input type="file" name="file" accept="image/*,.svg" required/>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Verdict</label>
+            <select name="verdict" required>
+              <option value="gold">gold — exemplar visual</option>
+              <option value="acceptable" selected>acceptable — on-brand</option>
+              <option value="reference">reference — moodboard / context</option>
+              <option value="anti-exemplar">anti-exemplar — off-brand example</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Tags (comma-separated)</label>
+            <input type="text" name="tags" placeholder="e.g. logo, coastal, packaging"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Description (one line)</label>
+          <input type="text" name="description" placeholder="e.g. Summer label mockup — approved color palette"/>
+        </div>
+        <button type="submit">Upload image →</button>
+        <span class="hint">A sidecar .yaml is written automatically alongside the image file.</span>
+      </form>
+    </details>
+  </div>
+
+  {# ── KNOWLEDGE BASE DOCS ──────────────────────────────────────────── #}
+  <div class="kb-section">
+    <h2>Knowledge Base Documents</h2>
+    <p class="section-desc">Markdown and plain-text documents injected into department context as Priority 3 knowledge claims. Organised by department.</p>
+
+    {% if kb_docs %}
+    <table class="kb-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Department</th>
+          <th>Size</th>
+          <th>Modified</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in kb_docs %}
+        <tr>
+          <td class="name">{{ doc.name }}</td>
+          <td class="meta">{{ doc.dept }}</td>
+          <td class="meta">{{ doc.size_kb }} KB</td>
+          <td class="meta">{{ doc.modified[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No knowledge base documents yet. Upload a markdown or text file below to add domain knowledge a department can retrieve.</div>
+    {% endif %}
+
+    <details class="upload-panel" style="margin-top:14px;">
+      <summary>+ Upload knowledge base document</summary>
+      <form method="POST" action="{{ url_for('knowledge_upload_kb', slug=slug) }}" enctype="multipart/form-data">
+        <div class="field-row">
+          <div class="field">
+            <label>Document file (.md or .txt)</label>
+            <input type="file" name="file" accept=".md,.txt" required/>
+          </div>
+          <div class="field">
+            <label>Department</label>
+            <select name="dept" required>
+              {% for d in departments %}
+              <option value="{{ d.name }}">{{ d.display_name or d.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <button type="submit">Upload &amp; ingest →</button>
+        <span class="hint">Document is saved to &lt;dept&gt;/knowledge-base/source/ and immediately indexed for retrieval.</span>
+      </form>
+    </details>
+  </div>
+
+</section>
+{% endblock %}

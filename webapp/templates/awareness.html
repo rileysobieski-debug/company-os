@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Awareness — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .awareness-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 20px; }
+  .awareness-header h1 { margin: 0; }
+  .stats-row { display: flex; gap: 12px; }
+  .stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 16px; text-align: center; }
+  .stat .n { font-size: 22px; font-weight: 600; color: #111; }
+  .stat .l { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
+
+  table.notes { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  table.notes th { text-align: left; padding: 10px 8px; border-bottom: 2px solid #e5e7eb; color: #6b7280; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  table.notes td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  table.notes tr.expired { opacity: .45; }
+  table.notes .observer { color: #1e40af; font-weight: 500; white-space: nowrap; }
+  table.notes .subject { color: #166534; font-weight: 500; }
+  table.notes .obs { color: #374151; }
+  table.notes .meta { color: #9ca3af; font-size: 11px; white-space: nowrap; }
+  table.notes .confirmed { background: #ecfccb; color: #3f6212; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+  .empty-state { background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 28px; text-align: center; color: #6b7280; margin-top: 16px; }
+  .empty-state code { background: #1f2937; color: #e5e7eb; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="awareness-header">
+    <div>
+      <h1>Ambient awareness</h1>
+      <p class="muted">Grounded observations agents write about each other. Evidence-required, 14d TTL. Auto-injected into dispatch preambles when relevant.</p>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="n">{{ active_notes|length }}</div><div class="l">active</div></div>
+      <div class="stat"><div class="n">{{ all_notes|length }}</div><div class="l">total</div></div>
+    </div>
+  </div>
+
+  <details style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+    <summary style="cursor:pointer;color:#3730a3;font-weight:600;">+ Write a founder note</summary>
+    <form method="POST" action="{{ url_for('awareness_new', slug=slug) }}" style="margin-top:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#4338ca;display:block;margin-bottom:3px;">Observer</label>
+          <input type="text" name="observer" value="founder" style="width:100%;padding:6px 10px;border:1px solid #c7d2fe;border-radius:5px;box-sizing:border-box;"/>
+        </div>
+        <div>
+          <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#4338ca;display:block;margin-bottom:3px;">Subject</label>
+          <input type="text" name="subject" required style="width:100%;padding:6px 10px;border:1px solid #c7d2fe;border-radius:5px;box-sizing:border-box;" placeholder="e.g., evaluator FAIL pattern"/>
+        </div>
+      </div>
+      <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#4338ca;display:block;margin:10px 0 3px;">Observation (≥20 chars, needs a verb and a concrete signal)</label>
+      <textarea name="observation" required rows="3" style="width:100%;padding:6px 10px;border:1px solid #c7d2fe;border-radius:5px;box-sizing:border-box;font-family:inherit;" placeholder="e.g., Observed evaluator returning FAIL on 3 of 10 campaign drafts at 2026-04-18..."></textarea>
+      <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#4338ca;display:block;margin:10px 0 3px;">Evidence refs (one per line — vault-relative paths)</label>
+      <textarea name="evidence_refs" required rows="2" style="width:100%;padding:6px 10px;border:1px solid #c7d2fe;border-radius:5px;box-sizing:border-box;font-family:inherit;" placeholder="sessions/2026-04-18/run.md"></textarea>
+      <button type="submit" style="margin-top:10px;background:#3730a3;color:#fff;border:none;padding:7px 14px;border-radius:5px;cursor:pointer;font-size:13px;">Add note →</button>
+      <span style="margin-left:10px;font-size:11px;color:#4338ca;">Same rails as agent-authored notes — quality gate + evidence check apply.</span>
+    </form>
+  </details>
+
+  {% if not all_notes %}
+  <div class="empty-state">
+    <p>No ambient notes yet.</p>
+    <p><small>Notes are written by managers/specialists during dispatch. Enable preamble injection by setting <code>COMPANY_OS_AMBIENT_AWARENESS=1</code>.</small></p>
+  </div>
+  {% else %}
+  <h2>Active notes</h2>
+  <table class="notes">
+    <thead>
+      <tr>
+        <th>Observer</th>
+        <th>Subject</th>
+        <th>Observation</th>
+        <th>Evidence</th>
+        <th>Expires</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for n in active_notes %}
+      <tr>
+        <td class="observer">{{ n.observer }}</td>
+        <td class="subject">{{ n.subject }}</td>
+        <td class="obs">
+          {{ n.observation }}
+          {% if n.confirmation_count %}<br><span class="confirmed">+{{ n.confirmation_count }} confirmed</span>{% endif %}
+        </td>
+        <td class="meta">
+          {% for r in n.evidence_refs %}
+            <div><a href="{{ url_for('view_artifact', slug=slug, path=r) }}">{{ r }}</a></div>
+          {% endfor %}
+        </td>
+        <td class="meta">{{ n.expires_at[:10] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% set expired_notes = [] %}
+  {% for n in all_notes %}{% if n.is_expired %}{% set _ = expired_notes.append(n) %}{% endif %}{% endfor %}
+  {% if expired_notes %}
+  <h2 style="margin-top: 36px;">Expired notes <span class="muted">({{ expired_notes|length }})</span></h2>
+  <table class="notes">
+    <thead>
+      <tr><th>Observer</th><th>Subject</th><th>Observation</th><th>Created</th><th>Expired</th></tr>
+    </thead>
+    <tbody>
+      {% for n in expired_notes %}
+      <tr class="expired">
+        <td class="observer">{{ n.observer }}</td>
+        <td class="subject">{{ n.subject }}</td>
+        <td class="obs">{{ n.observation }}</td>
+        <td class="meta">{{ n.created_at[:10] }}</td>
+        <td class="meta">{{ n.expired_at[:10] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

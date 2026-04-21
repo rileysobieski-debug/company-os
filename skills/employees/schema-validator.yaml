@@ -1,0 +1,27 @@
+skill_id: schema-validator
+description: >
+  Validates a markdown/YAML/JSON document against a declared schema or
+  rubric. Agentic — reads the target and the schema file, then reports
+  a structured pass/fail with offending fields enumerated.
+mode: agentic
+tools:
+  - Read
+  - Grep
+max_tool_iterations: 5
+max_tokens: 4096
+model: claude-haiku-4-5-20251001
+inputs:
+  - target_path
+  - schema_path
+outputs:
+  - valid
+  - violations
+benchmarks_yaml_path: skills/benchmarks/schema-validator.yaml
+rubric: |
+  Pass conditions:
+    - `valid` is True iff every required field is present and well-typed.
+    - `violations` enumerates every missing/malformed field with path.
+    - No LLM-generated validation claims outside the schema semantics.
+  Fail conditions:
+    - False positive (valid=True while a required field is missing).
+    - Violations cite field paths that do not exist in the target.

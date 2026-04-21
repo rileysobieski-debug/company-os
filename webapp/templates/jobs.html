@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Jobs — {{ company.name }}{% endblock %}
+
+{% block content %}
+<h1>Jobs</h1>
+<p class="muted">Background tasks for {{ company.name }}.</p>
+
+{% if jobs %}
+<table class="jobs">
+  <thead>
+    <tr><th>When</th><th>Kind</th><th>Label</th><th>Status</th><th>Log</th></tr>
+  </thead>
+  <tbody>
+    {% for j in jobs %}
+    <tr class="job-row status-{{ j.status }}">
+      <td class="muted small">{{ j.started_at }}</td>
+      <td><code>{{ j.kind }}</code></td>
+      <td><a href="{{ url_for('job_detail', slug=slug, job_id=j.id) }}">{{ j.label }}</a></td>
+      <td><span class="badge {% if j.status == 'done' %}ok{% elif j.status == 'error' %}err{% else %}warn{% endif %}">{{ j.status }}</span></td>
+      <td class="muted small">{{ j.log_count }} lines</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No jobs yet. <a href="{{ url_for('run_page', slug=slug) }}">Run an action →</a></div>
+{% endif %}
+{% endblock %}

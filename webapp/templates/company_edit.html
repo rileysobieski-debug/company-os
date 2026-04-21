@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Edit company context &mdash; {{ cfg.get('company_name', '') }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .edit-wrap { max-width: 920px; margin: 0 auto; }
+  .edit-wrap h2 { font-size: 16px; margin: 24px 0 8px; color: #111; }
+  .edit-wrap h2:first-child { margin-top: 0; }
+  .edit-wrap .hint {
+    font-size: 12px; color: #6b7280; margin: 0 0 10px;
+  }
+  .edit-wrap .field {
+    margin-bottom: 14px;
+  }
+  .edit-wrap label {
+    display: block; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: #4b5563; margin-bottom: 4px;
+  }
+  .edit-wrap input[type=text],
+  .edit-wrap input[type=number],
+  .edit-wrap textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1;
+    border-radius: 6px; font-family: inherit; font-size: 13px;
+    box-sizing: border-box; background: #fff;
+  }
+  .edit-wrap input[type=text]:focus,
+  .edit-wrap input[type=number]:focus,
+  .edit-wrap textarea:focus {
+    outline: 2px solid #2563eb; outline-offset: 0;
+  }
+  .edit-wrap textarea { min-height: 80px; resize: vertical; }
+  .edit-wrap textarea.tall { min-height: 160px; }
+  .edit-wrap .row {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  }
+  .edit-wrap .check {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    padding: 8px 10px; background: #f9fafb; border: 1px solid #e5e7eb;
+    border-radius: 6px; cursor: pointer;
+  }
+  .edit-wrap .check input { margin: 0; }
+  .edit-wrap .section {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 18px;
+  }
+  .edit-wrap .section-header {
+    border-bottom: 1px solid #e5e7eb; margin: -18px -20px 14px;
+    padding: 12px 20px; background: #f9fafb; border-radius: 10px 10px 0 0;
+    font-size: 13px; font-weight: 600; color: #111;
+  }
+  .actions-bar {
+    position: sticky; bottom: 0; background: #fff;
+    border-top: 1px solid #e5e7eb; padding: 14px 0;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 20px;
+  }
+  .actions-bar button {
+    background: #111; color: #fff; border: none; padding: 10px 22px;
+    border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .actions-bar button:hover { background: #1f2937; }
+  .notice {
+    background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px;
+  }
+  .errbox {
+    background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="edit-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+    <h1 style="margin:0;">Edit company context</h1>
+    <a href="{{ url_for('company_dashboard', slug=slug) }}" style="font-size:13px;color:#6b7280;">&larr; Back to dashboard</a>
+  </div>
+  <p class="hint">Everything on this page is injected into agent prompts as shared background. Change anything, click Save. Lists are one item per line.</p>
+
+  {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+  {% if err %}<div class="errbox">{{ err }}</div>{% endif %}
+
+  <form method="POST" action="{{ url_for('company_edit_save', slug=slug) }}">
+    <div class="section">
+      <div class="section-header">Identity</div>
+      <div class="row">
+        <div class="field">
+          <label for="company_name">Company name</label>
+          <input type="text" id="company_name" name="company_name" value="{{ cfg.get('company_name', '') }}" required/>
+        </div>
+        <div class="field">
+          <label for="company_id">Company ID (folder slug, stable)</label>
+          <input type="text" id="company_id" name="company_id" value="{{ cfg.get('company_id', '') }}" required/>
+        </div>
+      </div>
+      <div class="field">
+        <label for="industry">Industry</label>
+        <input type="text" id="industry" name="industry" value="{{ cfg.get('industry', '') }}"/>
+      </div>
+      <div class="field">
+        <label for="industry_note">Industry note (framing for managers)</label>
+        <textarea id="industry_note" name="industry_note" class="tall">{{ cfg.get('industry_note', '') }}</textarea>
+        <p class="hint">Explains the industry as the primary expertise anchor, and notes how secondaries interact with it.</p>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="business_model">Business model</label>
+          <input type="text" id="business_model" name="business_model" value="{{ cfg.get('business_model', '') }}"/>
+        </div>
+        <div class="field">
+          <label for="revenue_status">Revenue status</label>
+          <input type="text" id="revenue_status" name="revenue_status" value="{{ cfg.get('revenue_status', '') }}"/>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="team_size">Team size</label>
+          <input type="text" id="team_size" name="team_size" value="{{ cfg.get('team_size', '') }}"/>
+        </div>
+        <div class="field">
+          <label for="session_retention_days">Session retention (days)</label>
+          <input type="number" id="session_retention_days" name="session_retention_days" min="1" value="{{ cfg.get('session_retention_days', 90) }}"/>
+        </div>
+      </div>
+      <div class="field">
+        <label for="geography">Geography</label>
+        <textarea id="geography" name="geography" class="tall">{{ cfg.get('geography', '') }}</textarea>
+        <p class="hint">Operational base and any separate narrative geography (where the brand story is rooted).</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Departments and regulation</div>
+      <div class="field">
+        <label for="active_departments">Active departments (one slug per line)</label>
+        <textarea id="active_departments" name="active_departments" class="tall">{% for d in cfg.get('active_departments', []) %}{{ d }}
+{% endfor %}</textarea>
+        <p class="hint">Lowercase slugs matching dept folder names. Order matters: it's the canonical rendering order.</p>
+      </div>
+      <div class="field">
+        <label for="regulatory_context">Regulatory context (one item per line)</label>
+        <textarea id="regulatory_context" name="regulatory_context" class="tall">{% for r in cfg.get('regulatory_context', []) %}{{ r }}
+{% endfor %}</textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Priorities, convictions, hard constraints</div>
+      <div class="field">
+        <label for="priorities">Priorities (ordered, one per line)</label>
+        <textarea id="priorities" name="priorities" class="tall">{% for p in cfg.get('priorities', []) %}{{ p }}
+{% endfor %}</textarea>
+        <p class="hint">Stack-ranked. First line is the top priority. Shown in every agent's prompt.</p>
+      </div>
+      <div class="field">
+        <label for="settled_convictions">Settled convictions (one per line)</label>
+        <textarea id="settled_convictions" name="settled_convictions" class="tall">{% for c in cfg.get('settled_convictions', []) %}{{ c }}
+{% endfor %}</textarea>
+        <p class="hint">Decisions the agents cannot re-open. If a task implicitly contradicts one, the manager flags it.</p>
+      </div>
+      <div class="field">
+        <label for="hard_constraints">Hard constraints (one per line)</label>
+        <textarea id="hard_constraints" name="hard_constraints" class="tall">{% for c in cfg.get('hard_constraints', []) %}{{ c }}
+{% endfor %}</textarea>
+        <p class="hint">Bright lines no agent can cross. Regulatory, ethical, or founder-protected.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Delegation thresholds</div>
+      <p class="hint">Spend caps in US dollars and approval gates that scope agent autonomy.</p>
+      <div class="row">
+        <div class="field">
+          <label for="delegation__spend_auto_threshold">Auto-approve below ($)</label>
+          <input type="number" id="delegation__spend_auto_threshold" name="delegation__spend_auto_threshold" min="0" value="{{ delegation.get('spend_auto_threshold', 0) }}"/>
+        </div>
+        <div class="field">
+          <label for="delegation__spend_report_threshold">Report-only up to ($)</label>
+          <input type="number" id="delegation__spend_report_threshold" name="delegation__spend_report_threshold" min="0" value="{{ delegation.get('spend_report_threshold', 50) }}"/>
+        </div>
+      </div>
+      <div class="field">
+        <label for="delegation__spend_gate_threshold">Require approval above ($)</label>
+        <input type="number" id="delegation__spend_gate_threshold" name="delegation__spend_gate_threshold" min="0" value="{{ delegation.get('spend_gate_threshold', 500) }}"/>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <label class="check">
+          <input type="checkbox" name="delegation__content_publish_requires_approval" {% if delegation.get('content_publish_requires_approval', True) %}checked{% endif %}/>
+          Publishing content requires approval
+        </label>
+        <label class="check">
+          <input type="checkbox" name="delegation__vendor_commit_requires_approval" {% if delegation.get('vendor_commit_requires_approval', True) %}checked{% endif %}/>
+          Vendor commits require approval
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Narrative context (markdown files)</div>
+      <p class="hint">These files are injected verbatim into agent prompts. Edit freely. Blank values will blank the file on save.</p>
+      {% for block in md_blocks %}
+      <div class="field">
+        <label for="md__{{ block.filename }}">{{ block.label }} &mdash; <code style="font-weight:400;">{{ block.filename }}</code></label>
+        <p class="hint" style="margin:-2px 0 6px;">{{ block.hint }}</p>
+        <textarea id="md__{{ block.filename }}" name="md__{{ block.filename }}" class="tall" style="min-height:180px;">{{ block.content }}</textarea>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="actions-bar">
+      <a href="{{ url_for('company_dashboard', slug=slug) }}" style="font-size:13px;color:#6b7280;">Cancel</a>
+      <button type="submit">Save company context</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,29 @@
+skill_id: doc-writer
+description: >
+  Writes or edits markdown/plaintext documents under the vault. Agentic —
+  uses Read/Write/Edit tools to land changes durably; only returns after
+  disk persistence is confirmed.
+mode: agentic
+tools:
+  - Read
+  - Write
+  - Edit
+max_tool_iterations: 5
+max_tokens: 4096
+model: claude-haiku-4-5-20251001
+inputs:
+  - path
+  - content
+  - edit_plan
+outputs:
+  - written_path
+  - bytes_written
+benchmarks_yaml_path: skills/benchmarks/doc-writer.yaml
+rubric: |
+  Pass conditions:
+    - Target file exists on disk after return with the requested content.
+    - Edits preserve untouched regions byte-for-byte.
+    - Refuses writes outside the vault root.
+  Fail conditions:
+    - Silent data loss in edit regions.
+    - Write returns success while the file is absent or truncated.

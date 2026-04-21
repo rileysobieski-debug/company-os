@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Chat — {{ company.name }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .chat-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 18px; }
+  .chat-header h1 { margin: 0; }
+
+  .new-thread-form {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px 18px;
+    margin-bottom: 20px;
+  }
+  .new-thread-form h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #1e3a8a; font-weight: 600; }
+  .new-thread-form .row { display: grid; grid-template-columns: 220px 1fr auto; gap: 10px; align-items: start; }
+  .new-thread-form select, .new-thread-form input, .new-thread-form textarea {
+    padding: 8px 10px; border: 1px solid #c7d2fe; border-radius: 6px; font-family: inherit; font-size: 13px;
+    box-sizing: border-box; width: 100%;
+  }
+  .new-thread-form textarea { min-height: 54px; resize: vertical; }
+  .new-thread-form button {
+    background: #1e40af; color: #fff; border: none; padding: 10px 18px; border-radius: 6px;
+    font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+
+  .thread-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px;
+    margin-bottom: 8px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center;
+  }
+  .thread-card.closed { opacity: .6; }
+  .thread-card .title { font-size: 14px; font-weight: 600; color: #111; }
+  .thread-card .meta { font-size: 11px; color: #6b7280; margin-top: 3px; }
+  .thread-card .purpose-badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-left: 6px; }
+  .thread-card .purpose-badge.chat { background: #dbeafe; color: #1e40af; }
+  .thread-card .purpose-badge.founder_interview { background: #fce7f3; color: #9d174d; }
+  .thread-card .purpose-badge.strategy { background: #e9d5ff; color: #6b21a8; }
+  .thread-card .status-pill { font-size: 11px; padding: 2px 10px; border-radius: 999px; }
+  .thread-card .status-pill.open { background: #d1fae5; color: #065f46; }
+  .thread-card .status-pill.closed { background: #f3f4f6; color: #6b7280; }
+  .thread-card a.open-link { padding: 6px 14px; background: #111; color: #fff; border-radius: 6px; font-size: 12px; text-decoration: none; }
+  .empty { background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 28px; text-align: center; color: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section>
+  <div class="chat-header">
+    <div>
+      <h1>Conversations</h1>
+      <p class="muted">Talk directly to the orchestrator or a specific manager. Threads persist — resume them anytime.</p>
+    </div>
+  </div>
+
+  <form class="new-thread-form" method="POST" action="{{ url_for('chat_new', slug=slug) }}">
+    <h2>Start a new conversation</h2>
+    <div class="row">
+      <select name="target" required>
+        <option value="">— who to talk to —</option>
+        <option value="orchestrator">Orchestrator</option>
+        {% for d in departments %}
+        <option value="manager:{{ d.name }}">{{ d.display_name or d.name }} manager</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="title" placeholder="Thread title (optional)"/>
+      <button type="submit">Start →</button>
+    </div>
+    <div style="margin-top:10px;">
+      <textarea name="opener" placeholder="Optional opening message. If blank, the thread starts empty and you can type your first message on the next screen."></textarea>
+    </div>
+  </form>
+
+  {% if not threads %}
+  <div class="empty">
+    <p>No conversations yet.</p>
+    <p><small>Start one above, or kick off a founder interview from the <a href="{{ url_for('onboarding_dashboard', slug=slug) }}">onboarding dashboard</a>.</small></p>
+  </div>
+  {% else %}
+    {% for t in threads %}
+    <div class="thread-card {% if not t.is_open %}closed{% endif %}">
+      <div>
+        <div class="title">
+          {{ t.title }}
+          <span class="purpose-badge {{ t.purpose }}">{{ t.purpose|replace('_', ' ') }}</span>
+          {% if t.dept %}
+          <span class="purpose-badge" style="background:#f0fdf4;color:#14532d;">{{ t.dept }}</span>
+          {% endif %}
+        </div>
+        <div class="meta">
+          {{ t.target_agent }} · {{ t.turn_count }} turns · started {{ t.created_at[:19].replace('T', ' ') }}
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span class="status-pill {{ 'open' if t.is_open else 'closed' }}">{{ 'open' if t.is_open else 'closed' }}</span>
+        <a class="open-link" href="{{ url_for('chat_detail', slug=slug, thread_id=t.id) }}">Open →</a>
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

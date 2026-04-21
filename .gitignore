@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Tooling caches
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs + runtime state
+logs/
+*.log
+*.log.*
+
+# Generated artifacts not meant for source control
+test-outputs/
+eval-responses/
+
+# Governance SQLite + WAL side-files (per-vault runtime, not source)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.db
+
+# Secrets (belt-and-suspenders; these shouldn't exist in-tree anyway)
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Claude Code scratch
+.claude/
+
+# Private working notebook (not for public repo)
+lab-notebook.md
