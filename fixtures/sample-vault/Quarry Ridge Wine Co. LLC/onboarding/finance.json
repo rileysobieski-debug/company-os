@@ -1,0 +1,72 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-03-14T10:15:00Z",
+      "job_id": "fn-synth-j-1",
+      "notes": "Founder selected Candidate A (community land-trust bookkeeping secondary) on first slate. Synthesized skill-scope approved.",
+      "path": "finance/skill-scope.md",
+      "phase": "scope_calibration",
+      "rating": 2,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-03-18T13:22:00Z",
+      "job_id": "fn-research-j-1",
+      "notes": "Domain brief covering TTB excise, PA LCB reporting, and state-by-state DTC tax registration cadences.",
+      "path": "finance/domain-brief.md",
+      "phase": "domain_research",
+      "rating": 2,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-03-24T16:08:00Z",
+      "job_id": "fn-interview-j-1",
+      "notes": "Founder interview synthesis. Good signal on cash-flow buffer preferences.",
+      "path": "finance/founder-brief.md",
+      "phase": "founder_interview",
+      "rating": 1,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-04-01T11:00:00Z",
+      "job_id": "",
+      "notes": "KB ingestion skipped.",
+      "path": "",
+      "phase": "kb_ingestion",
+      "rating": null,
+      "signoff": "skipped"
+    },
+    {
+      "created_at": "2026-04-05T14:22:00Z",
+      "job_id": "",
+      "notes": "Integrations skipped. Will revisit once Shopify storefront is live and finance needs to reconcile transaction feeds.",
+      "path": "",
+      "phase": "integrations",
+      "rating": null,
+      "signoff": "skipped"
+    },
+    {
+      "created_at": "2026-04-15T09:33:00Z",
+      "job_id": "fn-charter-j-1",
+      "notes": "Charter drafted and under founder review. Awaiting signoff.",
+      "path": "finance/charter.md",
+      "phase": "charter",
+      "rating": null,
+      "signoff": "none"
+    }
+  ],
+  "completed_phases": [
+    "scope_calibration",
+    "domain_research",
+    "founder_interview"
+  ],
+  "dept": "finance",
+  "last_transition_at": "2026-04-15T09:33:00Z",
+  "notes": "",
+  "phase": "charter",
+  "skipped_phases": [
+    "kb_ingestion",
+    "integrations"
+  ],
+  "started_at": "2026-03-14T10:00:00Z"
+}

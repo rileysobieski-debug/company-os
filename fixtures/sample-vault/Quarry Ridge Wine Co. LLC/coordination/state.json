@@ -1,0 +1,11 @@
+{
+  "status": "approved",
+  "started_at": "2026-04-07T14:08:00Z",
+  "completed_at": "2026-04-07T14:11:47Z",
+  "approved_at": "2026-04-07T16:22:31Z",
+  "job_id": "coord-j-4f2a",
+  "scope_map_path": "coordination/scope-map.md",
+  "scope_map_json_path": "coordination/scope-map.json",
+  "error": "",
+  "notes": "Ratified on first draft. Overlap on label copy review was the only contested area; handoff language in the scope map resolved it cleanly. No gaps flagged. Re-run coordination if a new department is added or if any department's charter is materially amended."
+}

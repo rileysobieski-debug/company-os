@@ -1,0 +1,93 @@
+{
+  "dept": "marketing",
+  "proposed_at": "2026-04-12T14:32:08Z",
+  "last_updated_at": "2026-04-14T19:41:22Z",
+  "notes": "Thin roster on purpose: two roles, both directly tied to first-vintage release work. Sub-agent secondaries are adjacent to my decommissioned-textile-mill secondary through different paths: small-press poetry editing shares the preservation-versus-smoothing tension of rehab work, and volunteer-fire operations shares the coordinate-independent-parties-under-time-pressure pattern of running a rehab site.",
+  "selected_candidate_id": "",
+  "entries": [
+    {
+      "role_slug": "copywriter",
+      "display_name": "Copywriter",
+      "primary_description": "Writes owned-channel copy: storefront product descriptions, mailing-list emails, wine-club onboarding sequences, and in-bottle producer notes. Works to 80-to-300 word deliverables most of the time. Stays inside TTB-compliant claims and matches the technical sheet.",
+      "criticality": "mission_critical",
+      "suggested_adjacency": "Pull from a field where specificity and restraint are the craft: small-press editing, letter-writing traditions, museum-label writing, short-form liner-note traditions. NOT journalism and NOT corporate marketing writing.",
+      "status": "hired",
+      "declared_secondary": "small-press poetry editing",
+      "arrival_thread_path": "conversations/arrival-copywriter-b.json",
+      "skill_scope_path": "marketing/copywriter/skill-scope.md",
+      "job_id": "j-8c2f1d3a",
+      "notes": "Selected Candidate B (small-press poetry editor). Candidate A's secondary was museum exhibition-label writing, which was adjacent but the voice read more institutional than I wanted. Candidate C was a wire-service journalist, rejected for over-valuing speed over craft on short-form work.",
+      "candidates": [
+        {
+          "candidate_id": "c7a21f",
+          "label": "Candidate A",
+          "thread_path": "conversations/arrival-copywriter-a.json",
+          "job_id": "j-8c2f1d3a-a",
+          "status": "discarded",
+          "declared_secondary": "museum exhibition-label writing",
+          "created_at": "2026-04-13T10:11:08Z"
+        },
+        {
+          "candidate_id": "c8b34e",
+          "label": "Candidate B",
+          "thread_path": "conversations/arrival-copywriter-b.json",
+          "job_id": "j-8c2f1d3a-b",
+          "status": "selected",
+          "declared_secondary": "small-press poetry editing",
+          "created_at": "2026-04-13T10:11:12Z"
+        },
+        {
+          "candidate_id": "c9d48c",
+          "label": "Candidate C",
+          "thread_path": "conversations/arrival-copywriter-c.json",
+          "job_id": "j-8c2f1d3a-c",
+          "status": "discarded",
+          "declared_secondary": "wire-service journalism",
+          "created_at": "2026-04-13T10:11:14Z"
+        }
+      ]
+    },
+    {
+      "role_slug": "brand-strategist",
+      "display_name": "Brand Strategist",
+      "primary_description": "Positioning, narrative architecture, visual-identity briefs, naming, and the strategic choices about what the brand says and does not say. Produces briefs that copywriters and designers execute against. Does not produce finished assets.",
+      "criticality": "core",
+      "suggested_adjacency": "Pull from a field where time-pressured decision-making and commitment under uncertainty are load-bearing skills: emergency services, live theater direction, small-boat racing, volunteer-led organizations with high stakes. This role is about defending brand boundaries under temptation, which rhymes with incident command.",
+      "status": "hired",
+      "declared_secondary": "volunteer fire department operations",
+      "arrival_thread_path": "conversations/arrival-brand-strategist-a.json",
+      "skill_scope_path": "marketing/brand-strategist/skill-scope.md",
+      "job_id": "j-8c2f1d3b",
+      "notes": "Selected Candidate A on first slate; the incident-command framing fit the role's decision-under-pressure profile better than the two alternatives (small-boat racing, community-theater direction).",
+      "candidates": [
+        {
+          "candidate_id": "d1a22b",
+          "label": "Candidate A",
+          "thread_path": "conversations/arrival-brand-strategist-a.json",
+          "job_id": "j-8c2f1d3b-a",
+          "status": "selected",
+          "declared_secondary": "volunteer fire department operations",
+          "created_at": "2026-04-14T09:02:31Z"
+        },
+        {
+          "candidate_id": "d2b33d",
+          "label": "Candidate B",
+          "thread_path": "conversations/arrival-brand-strategist-b.json",
+          "job_id": "j-8c2f1d3b-b",
+          "status": "discarded",
+          "declared_secondary": "small-boat racing, specifically skiff-class handicap fleets",
+          "created_at": "2026-04-14T09:02:34Z"
+        },
+        {
+          "candidate_id": "d3c44e",
+          "label": "Candidate C",
+          "thread_path": "conversations/arrival-brand-strategist-c.json",
+          "job_id": "j-8c2f1d3b-c",
+          "status": "discarded",
+          "declared_secondary": "community-theater direction in small towns",
+          "created_at": "2026-04-14T09:02:35Z"
+        }
+      ]
+    }
+  ]
+}

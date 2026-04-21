@@ -1,0 +1,50 @@
+{
+  "company_id": "quarry-ridge",
+  "company_name": "Quarry Ridge Wine Co. LLC",
+  "industry": "wine / beverage alcohol",
+  "industry_note": "Wine/beverage is the PRIMARY expertise anchor for every manager and the non-negotiable regulatory vertical the company is being built against. To prevent managers from narrowing their expertise to only this field, every manager also declares a serendipitous secondary background drawn from an unrelated prior-work domain, recorded in their skill-scope.md. The secondary is a cognitive lens for problem-solving, never a second operational duty.",
+  "business_model": "product",
+  "revenue_status": "pre-revenue",
+  "geography": "Operational base: south-central Pennsylvania, rural, with direct access to a state-licensed custom-crush facility and three existing vineyard partnerships in Lancaster and York counties. No physical tasting room yet; DTC-first strategy.",
+  "team_size": "solo",
+  "active_departments": [
+    "marketing",
+    "finance",
+    "operations"
+  ],
+  "regulatory_context": [
+    "Federal TTB (Alcohol and Tobacco Tax and Trade Bureau)",
+    "Pennsylvania Liquor Control Board (PLCB) and Pennsylvania three-tier system",
+    "COLA (Certificate of Label Approval) requirements for every SKU",
+    "State-by-state DTC shipping permits (PA outbound, plus priority targets NY, NJ, VA, MD)",
+    "PLCB's Licensee Service Center processes for Limited Winery License"
+  ],
+  "delegation": {
+    "spend_auto_threshold": 0,
+    "spend_report_threshold": 50,
+    "spend_gate_threshold": 500,
+    "content_publish_requires_approval": true,
+    "vendor_commit_requires_approval": true
+  },
+  "priorities": [
+    "Secure Pennsylvania Limited Winery License and custom-crush agreement in time for the 2026 harvest window",
+    "Produce a first commercial vintage under the Quarry Ridge label (target: 400 cases across two SKUs)",
+    "Establish DTC sales infrastructure: Shopify storefront, ShipCompliant for compliance, fulfillment partner in-state",
+    "Define the product lineup (varietals, price point, format) consistent with natural-process positioning"
+  ],
+  "settled_convictions": [
+    "Brand voice is grounded, pragmatic, place-based. Not luxury, not folksy, not ironic.",
+    "Natural-process positioning: native yeasts, minimal intervention, low sulfur. This is a commitment, not a marketing angle.",
+    "No outside equity investors. Debt, grants, and revenue-funded growth only.",
+    "Operational base is Pennsylvania. Do not propose relocating operations to a larger wine-producing state.",
+    "Direct-to-consumer first. Wholesale distribution is a later-year consideration, not a launch channel."
+  ],
+  "hard_constraints": [
+    "Never market to or involve anyone under 21",
+    "Never violate TTB labeling, COLA, or federal alcohol regulations",
+    "Never violate Pennsylvania state licensing requirements",
+    "Never commit company funds without the founder's explicit approval",
+    "Never publish copy or imagery that contradicts the natural-process positioning"
+  ],
+  "session_retention_days": 90
+}

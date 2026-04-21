@@ -1,0 +1,41 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-03-16T11:08:00Z",
+      "job_id": "op-synth-j-1",
+      "notes": "Founder selected Candidate C on re-roll. Initial slate had two candidates with overlapping secondaries (both land-management adjacent); re-roll produced fresh set. Radio-engineering secondary selected.",
+      "path": "operations/skill-scope.md",
+      "phase": "scope_calibration",
+      "rating": 1,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-03-20T15:42:00Z",
+      "job_id": "op-research-j-1",
+      "notes": "Domain brief on vineyard-contract execution, TTB compliance sequencing, and DTC regulatory surface. Approved with strong signal.",
+      "path": "operations/domain-brief.md",
+      "phase": "domain_research",
+      "rating": 2,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-04-17T14:08:00Z",
+      "job_id": "op-interview-j-1",
+      "notes": "Founder interview is in progress. Manager has sent three questions so far; founder has answered two. Thread expected to continue into next week.",
+      "path": "conversations/op-interview-thread.json",
+      "phase": "founder_interview",
+      "rating": null,
+      "signoff": "none"
+    }
+  ],
+  "completed_phases": [
+    "scope_calibration",
+    "domain_research"
+  ],
+  "dept": "operations",
+  "last_transition_at": "2026-04-17T14:08:00Z",
+  "notes": "",
+  "phase": "founder_interview",
+  "skipped_phases": [],
+  "started_at": "2026-03-16T11:00:00Z"
+}

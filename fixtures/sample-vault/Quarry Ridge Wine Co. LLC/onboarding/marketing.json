@@ -1,0 +1,91 @@
+{
+  "artifacts": [
+    {
+      "created_at": "2026-03-12T09:02:15Z",
+      "job_id": "",
+      "notes": "",
+      "path": "marketing/candidates.json",
+      "phase": "scope_calibration",
+      "rating": null,
+      "signoff": "none"
+    },
+    {
+      "created_at": "2026-03-12T09:41:22Z",
+      "job_id": "mk-synth-j-1",
+      "notes": "Founder selected Candidate B (textile-mill restoration secondary). Synthesized skill-scope locked in at 2026-03-12T09:44:10Z.",
+      "path": "marketing/skill-scope.md",
+      "phase": "scope_calibration",
+      "rating": 2,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-03-15T14:22:08Z",
+      "job_id": "mk-research-j-1",
+      "notes": "Domain research covering primary + secondary. Founder approved with positive rating.",
+      "path": "marketing/domain-brief.md",
+      "phase": "domain_research",
+      "rating": 1,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-03-22T11:08:41Z",
+      "job_id": "mk-interview-j-1",
+      "notes": "Founder interview synthesis. Carried forward press-strategy open question to revisit.",
+      "path": "marketing/founder-brief.md",
+      "phase": "founder_interview",
+      "rating": 1,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-03-30T15:42:00Z",
+      "job_id": "",
+      "notes": "KB ingestion skipped for year one; no PDFs or deep knowledge base to absorb yet.",
+      "path": "",
+      "phase": "kb_ingestion",
+      "rating": null,
+      "signoff": "skipped"
+    },
+    {
+      "created_at": "2026-04-02T10:18:22Z",
+      "job_id": "",
+      "notes": "Integrations deferred until storefront work begins. Skipped with intent to revisit.",
+      "path": "",
+      "phase": "integrations",
+      "rating": null,
+      "signoff": "skipped"
+    },
+    {
+      "created_at": "2026-04-09T13:55:08Z",
+      "job_id": "mk-charter-j-1",
+      "notes": "Charter ratified. Carries forward paid-acquisition and press-strategy as founder-gated decisions.",
+      "path": "marketing/charter.md",
+      "phase": "charter",
+      "rating": 2,
+      "signoff": "approved"
+    },
+    {
+      "created_at": "2026-04-12T14:32:08Z",
+      "job_id": "mk-staff-j-1",
+      "notes": "Manager proposed a 2-role roster (copywriter, brand-strategist). Founder approved both; hires in progress.",
+      "path": "marketing/roster.json",
+      "phase": "staffing",
+      "rating": null,
+      "signoff": "none"
+    }
+  ],
+  "completed_phases": [
+    "scope_calibration",
+    "domain_research",
+    "founder_interview",
+    "charter"
+  ],
+  "dept": "marketing",
+  "last_transition_at": "2026-04-14T19:41:22Z",
+  "notes": "",
+  "phase": "staffing",
+  "skipped_phases": [
+    "kb_ingestion",
+    "integrations"
+  ],
+  "started_at": "2026-03-12T09:00:00Z"
+}
