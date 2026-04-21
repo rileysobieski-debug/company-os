@@ -1,26 +1,26 @@
 """tests/test_oracle_adversarial.py -- Adversarial scenarios for the Oracle.
 
-Unit tests for attacks the Oracle must resist and for known gaps that
-v1a accepts (these are marked explicitly so reviewers can see the
-exact threat surface).
+Unit tests for attacks the Oracle must resist and for gaps that v1a
+accepted but v1b now closes via NodeRegistry-backed authorization.
 
 Scenarios covered:
 - Post-signing evidence tamper -> SignatureError (closes tamper path).
 - Post-signing evaluator_did tamper -> SignatureError (closes tamper path).
 - Signer / signature.signer drift -> SignatureError (closes drift path).
-- Identity-spoof gap (v1b): a raw OracleVerdict can be constructed with
-  an evaluator_did that claims one identity while being signed by a
-  different keypair's keys. verify_signature PASSES today because the
-  Oracle does not consult a NodeRegistry. Documented as an open v1b
-  gap so the test pins current behavior and the recommendation (add
-  registry-backed evaluator authorization to verify_signature).
+- Registry-backed authorization (v1b):
+  - No-registry path: v1a behavior preserved (spoof passes verify_signature).
+  - Registry happy path: valid verdict with registered keypair passes.
+  - Registry spoof gap: spoof verdict raises SignatureError (GAP CLOSED IN V1B).
+  - Registry unknown DID: unregistered evaluator_did raises SignatureError.
 """
 from __future__ import annotations
 
 import dataclasses
 import hashlib
 import json
+import tempfile
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -28,6 +28,7 @@ from core.primitives.asset import AssetRef
 from core.primitives.exceptions import SignatureError
 from core.primitives.identity import Ed25519Keypair
 from core.primitives.money import Money
+from core.primitives.node_registry import NodeRegistry
 from core.primitives.oracle import Oracle, OracleVerdict
 from core.primitives.schema_verifier import SchemaVerifier
 from core.primitives.sla import InterOrgSLA
@@ -147,42 +148,47 @@ class TestPostSigningTamper:
 
 
 # ---------------------------------------------------------------------------
-# Known v1a gap: evaluator_did is NOT crypto-bound to a registered identity.
+# Helper: build an in-memory NodeRegistry from a dict of did -> Ed25519Keypair.
 # ---------------------------------------------------------------------------
-class TestKnownV1aGaps:
-    """Behaviors that v1a accepts and v1b should close.
+def _make_registry(entries: dict[str, Ed25519Keypair]) -> NodeRegistry:
+    """Build a NodeRegistry with one entry per keypair, using a temp directory."""
+    registry = NodeRegistry()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        registry.load(root)
+        for did, keypair in entries.items():
+            registry.register(did, keypair.public_key)
+    return registry
 
-    These tests pin the current contract so a future registry-backed
-    authorization change surfaces as a clear diff instead of a silent
-    semantic shift.
+
+# ---------------------------------------------------------------------------
+# Registry-backed authorization tests (v1b).
+# ---------------------------------------------------------------------------
+class TestRegistryBackedAuthorization:
+    """Verify_signature registry-mode authorization introduced in v1b.
+
+    Split from TestKnownV1aGaps to document both the preserved v1a
+    no-registry behavior and the new registry-mode closure of the
+    evaluator_did spoof gap.
     """
 
-    def test_evaluator_did_spoof_passes_verify_signature_today(
+    def test_no_registry_path_preserves_v1a_behavior(
         self,
         requester_keypair: Ed25519Keypair,
         provider_keypair: Ed25519Keypair,
         usd: AssetRef,
     ):
-        """KNOWN V1A GAP (v1b fix).
+        """No-registry path: v1a behavior preserved (spoof verdict still passes).
 
-        Scenario: a provider issues a verdict claiming evaluator_did is
-        the requester's DID, but signs with its own keypair. The verdict
-        cryptographically verifies because Oracle.verify_signature checks:
-          (a) self.signer == self.signature.signer (consistency)
-          (b) Ed25519 verify over canonical bytes
+        When verify_signature() is called without a registry argument,
+        only signer-consistency and cryptographic checks run. A verdict
+        where evaluator_did claims one DID but is signed by a different
+        keypair will still pass, just as it did in v1a.
 
-        Neither check consults a NodeRegistry to confirm that the
-        signer's pubkey is the one registered for evaluator_did.
-
-        v1a decision (documented in ORACLE.md section (e)): defer
-        registry-backed evaluator authorization to v1b, consistent with
-        how founder identity is also string-based in v1a.
-
-        v1b fix: extend OracleVerdict.verify_signature (or add a
-        verify_with_registry variant) that resolves evaluator_did
-        through NodeRegistry and rejects on pubkey mismatch.
+        This test confirms we have NOT broken the no-registry call path.
+        Callers that do not supply a NodeRegistry continue to receive
+        the same guarantees as in v1a.
         """
-        # Provider builds a verdict that claims the requester evaluated.
         oracle_claiming_requester = Oracle(
             node_did="did:companyos:requester",  # spoofed claim
             node_keypair=provider_keypair,        # but signs with provider's key
@@ -192,23 +198,90 @@ class TestKnownV1aGaps:
         sla = _make_sla(usd, artifact)
         spoof_verdict = oracle_claiming_requester.evaluate_tier0(sla, artifact)
 
-        # The spoof verdict's top-level signer is the provider's pubkey
-        # (because Oracle uses self.node_keypair.public_key), NOT the
-        # requester's pubkey.
         assert spoof_verdict.signer == provider_keypair.public_key
         assert spoof_verdict.signer != requester_keypair.public_key
-        # And yet: evaluator_did claims to be the requester.
         assert spoof_verdict.evaluator_did == "did:companyos:requester"
 
-        # verify_signature PASSES because there is no registry lookup.
-        # This is the gap. v1b MUST close it via NodeRegistry binding.
-        spoof_verdict.verify_signature()  # does not raise
+        # No registry: v1a behavior, does not raise.
+        spoof_verdict.verify_signature()
 
-        # Explicit assertion documenting the gap for future greppers.
-        # If this line ever starts failing, someone fixed the gap --
-        # update the test to require registry-backed verification and
-        # flip the assertion.
-        assert True, (
-            "v1a: evaluator_did is not crypto-bound to signer. "
-            "v1b must add NodeRegistry-backed authorization."
+    def test_registry_mode_closes_spoof_gap_in_v1b(
+        self,
+        requester_keypair: Ed25519Keypair,
+        provider_keypair: Ed25519Keypair,
+        usd: AssetRef,
+    ):
+        """CLOSED IN V1B by registry-mode verify_signature.
+
+        Scenario: provider claims evaluator_did is the requester's DID,
+        but signs with its own keypair. With a NodeRegistry that maps
+        "did:companyos:requester" to the REAL requester pubkey, the
+        registry check detects the pubkey mismatch and raises
+        SignatureError.
+
+        v1a decision (documented in ORACLE.md section (e)): deferred
+        to v1b. This test documents the closure.
+        """
+        oracle_claiming_requester = Oracle(
+            node_did="did:companyos:requester",  # spoofed claim
+            node_keypair=provider_keypair,        # but signs with provider's key
+            schema_verifier=SchemaVerifier(),
         )
+        artifact = json.dumps({"summary": "attack"}).encode()
+        sla = _make_sla(usd, artifact)
+        spoof_verdict = oracle_claiming_requester.evaluate_tier0(sla, artifact)
+
+        # Registry maps the requester DID to the REAL requester pubkey.
+        registry = _make_registry({"did:companyos:requester": requester_keypair})
+
+        with pytest.raises(
+            SignatureError,
+            match="does not match registered pubkey",
+        ):
+            spoof_verdict.verify_signature(registry=registry)
+
+    def test_registry_mode_valid_verdict_passes(
+        self,
+        requester_keypair: Ed25519Keypair,
+        usd: AssetRef,
+    ):
+        """Registry happy path: a legitimate verdict by a registered node passes."""
+        oracle = Oracle(
+            node_did="did:companyos:requester",
+            node_keypair=requester_keypair,
+            schema_verifier=SchemaVerifier(),
+        )
+        artifact = json.dumps({"summary": "legitimate"}).encode()
+        sla = _make_sla(usd, artifact)
+        verdict = oracle.evaluate_tier0(sla, artifact)
+
+        registry = _make_registry({"did:companyos:requester": requester_keypair})
+
+        # Should not raise.
+        verdict.verify_signature(registry=registry)
+
+    def test_registry_mode_unknown_evaluator_did_raises(
+        self,
+        requester_keypair: Ed25519Keypair,
+        usd: AssetRef,
+    ):
+        """Registry mode: verdict with an evaluator_did not in the registry raises
+        SignatureError with 'unknown evaluator DID' in the message.
+        """
+        oracle = Oracle(
+            node_did="did:companyos:unknown-node",
+            node_keypair=requester_keypair,
+            schema_verifier=SchemaVerifier(),
+        )
+        artifact = json.dumps({"summary": "test"}).encode()
+        sla = _make_sla(usd, artifact)
+        verdict = oracle.evaluate_tier0(sla, artifact)
+
+        # Registry is empty (no entries for "did:companyos:unknown-node").
+        registry = _make_registry({"did:companyos:other-node": requester_keypair})
+
+        with pytest.raises(
+            SignatureError,
+            match="unknown evaluator DID",
+        ):
+            verdict.verify_signature(registry=registry)

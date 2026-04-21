@@ -54,7 +54,10 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
+
+if TYPE_CHECKING:
+    from core.primitives.node_registry import NodeRegistry
 
 from core.primitives.canonicalizer_registry import (
     default_canonicalizer_registry,
@@ -363,44 +366,71 @@ class OracleVerdict:
     # -----------------------------------------------------------------------
     # Signature verification
     # -----------------------------------------------------------------------
-    def verify_signature(self) -> None:
+    def verify_signature(
+        self,
+        registry: "NodeRegistry | None" = None,
+    ) -> None:
         """Verify the embedded Ed25519 signature over canonical bytes.
 
         Recomputes canonical bytes (signature excluded, verdict_hash
         included) and checks the signature against `self.signer`.
 
+        Parameters
+        ----------
+        registry:
+            Optional `NodeRegistry`. When `None` (the default), the method
+            performs only the v1a checks: signer-consistency and
+            cryptographic signature verification. This preserves backward
+            compatibility for all existing callers.
+
+            When a registry is provided, a third check is added AFTER the
+            cryptographic verify succeeds:
+              1. Resolve `self.evaluator_did` via `registry.get(did)`.
+                 If the DID is not registered, raises
+                 `SignatureError("unknown evaluator DID: <did>")`.
+              2. Compare the registered pubkey against `self.signer`.
+                 If they differ, raises
+                 `SignatureError("evaluator pubkey does not match
+                 registered pubkey for <did>")`.
+
+            The registry check runs LAST so that a tampered verdict
+            (whose signature fails the cryptographic check) surfaces as
+            "signature failed verification", not "unknown DID", even when
+            both failures would apply.
+
         Raises:
             SignatureError: if the signer embedded in `self.signature`
-                does not match `self.signer`, or if cryptographic
-                verification fails (tampered fields, wrong keypair, etc.).
+                does not match `self.signer`, if cryptographic
+                verification fails (tampered fields, wrong keypair, etc.),
+                or (when registry is provided) if the evaluator_did is
+                unknown or its registered pubkey does not match
+                `self.signer`.
 
-        v1a scope limits (see ORACLE.md section (e)):
+        v1b gap status:
 
-        - No NodeRegistry lookup. This method proves a keypair signed
-          these bytes; it does NOT prove the keypair is authorized to
-          sign AS `self.evaluator_did`. See
-          `tests/test_oracle_adversarial.py::TestKnownV1aGaps`. v1b
-          must close this by resolving evaluator_did through the
-          NodeRegistry and rejecting on pubkey mismatch.
-        - Protocol-version forward-compat. Canonicalization rules live
-          on the current module. If v1b changes those rules, historical
-          v1a verdicts (protocol_version == "companyos-verdict/0.1")
-          will fail verification under the new rules. v1b should
-          dispatch byte derivation through a version-keyed canonicalizer
-          registry so archived verdicts remain auditable.
+        - NodeRegistry gap: CLOSED when registry is passed. Callers that
+          supply a NodeRegistry get evaluator_did -> pubkey binding
+          verification. Callers that pass no registry retain v1a behavior.
+        - Protocol-version forward-compat: OPEN (deferred to v1c).
+          If v1c changes canonicalization rules, historical v1a verdicts
+          (protocol_version == "companyos-verdict/0.1") will fail
+          verification under the new rules. v1c should dispatch byte
+          derivation through a version-keyed canonicalizer registry so
+          archived verdicts remain auditable.
         """
-        # Signer consistency: the pubkey in the Signature must equal the
-        # top-level `signer` field. This prevents signature/signer drift
+        # Step 1: Signer consistency. The pubkey in the Signature must equal
+        # the top-level `signer` field. This prevents signature/signer drift
         # where someone swaps one field without the other.
         if self.signature.signer != self.signer:
             raise SignatureError(
                 "signature.signer does not match top-level signer field"
             )
 
-        # Protocol-constant step (ruling 20): read protocol_version from the
-        # verdict BEFORE invoking any canonicalizer. The version parse is
-        # protocol-constant; the canonicalizer is protocol-varying.
-        # Unknown protocol_version raises ValueError (not SignatureError).
+        # Step 2: Cryptographic verify. Protocol-constant step (ruling 20):
+        # read protocol_version from the verdict BEFORE invoking any
+        # canonicalizer. The version parse is protocol-constant; the
+        # canonicalizer is protocol-varying. Unknown protocol_version raises
+        # ValueError (not SignatureError).
         _version = self.protocol_version
         canonicalize = default_canonicalizer_registry.get(_version)
 
@@ -411,6 +441,21 @@ class OracleVerdict:
             raise SignatureError(
                 "OracleVerdict signature failed cryptographic verification"
             )
+
+        # Step 3 (registry mode only): DID -> pubkey binding check.
+        # Runs after crypto verify so tamper failures surface before DID errors.
+        if registry is not None:
+            try:
+                registered_pubkey = registry.get(self.evaluator_did)
+            except KeyError:
+                raise SignatureError(
+                    f"unknown evaluator DID: {self.evaluator_did}"
+                )
+            if registered_pubkey != self.signer:
+                raise SignatureError(
+                    f"evaluator pubkey does not match registered pubkey "
+                    f"for {self.evaluator_did}"
+                )
 
     # -----------------------------------------------------------------------
     # Serialization
