@@ -29,6 +29,7 @@ from core.primitives.identity import Ed25519Keypair
 from core.primitives.money import Money
 from core.primitives.oracle import Oracle
 from core.primitives.schema_verifier import SchemaVerifier
+from core.primitives.signer import LocalKeypairSigner
 from core.primitives.sla import InterOrgSLA
 
 
@@ -136,7 +137,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Reviewed manually; artifact meets intent.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.result == "accepted"
@@ -150,7 +151,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Manual review passed.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.evidence["kind"] == "founder_override"
@@ -163,7 +164,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Artifact acceptable on review.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.evidence["overrides"] == prior.verdict_hash
@@ -177,7 +178,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason=reason,
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.evidence["reason"] == reason
@@ -190,7 +191,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Accepted on founder review.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.evidence["founder_identity"] == "riley"
@@ -203,7 +204,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Override reason.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.sla_id == prior.sla_id
@@ -216,7 +217,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Override reason.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.artifact_hash == prior.artifact_hash
@@ -229,7 +230,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Founder review passed.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         # Must not raise - the embedded signer is the founder's pubkey.
@@ -246,7 +247,7 @@ class TestFounderOverrideHappyPath:
             prior,
             result="accepted",
             reason="Override reason.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         assert override.evaluator_did == oracle_a.node_did
@@ -262,7 +263,7 @@ class TestFounderOverrideHappyPath:
                 prior,
                 result="accepted",
                 reason=f"Override by {identity}.",
-                founder_keypair=founder_keypair,
+                founder_signer=LocalKeypairSigner(founder_keypair),
                 founder_identity=identity,
             )
             assert override.evidence["founder_identity"] == identity
@@ -282,7 +283,7 @@ class TestFounderOverrideAccessControl:
                 prior,
                 result="accepted",
                 reason="Attempting unauthorized override.",
-                founder_keypair=founder_keypair,
+                founder_signer=LocalKeypairSigner(founder_keypair),
                 founder_identity="mallory",
             )
 
@@ -295,7 +296,7 @@ class TestFounderOverrideAccessControl:
                 prior,
                 result="accepted",
                 reason="Override attempt.",
-                founder_keypair=founder_keypair,
+                founder_signer=LocalKeypairSigner(founder_keypair),
                 founder_identity="",
             )
 
@@ -308,7 +309,7 @@ class TestFounderOverrideAccessControl:
                 prior,
                 result="accepted",
                 reason="",
-                founder_keypair=founder_keypair,
+                founder_signer=LocalKeypairSigner(founder_keypair),
                 founder_identity="riley",
             )
 
@@ -321,7 +322,25 @@ class TestFounderOverrideAccessControl:
                 prior,
                 result="accepted",
                 reason="   ",
-                founder_keypair=founder_keypair,
+                founder_signer=LocalKeypairSigner(founder_keypair),
+                founder_identity="riley",
+            )
+
+    def test_raw_keypair_raises_type_error_with_migration_message(
+        self, oracle_a: Oracle, usd: AssetRef, founder_keypair: Ed25519Keypair
+    ):
+        """Passing a raw Ed25519Keypair (pre-v1b call shape) raises TypeError.
+
+        The error message must mention LocalKeypairSigner so callers know
+        exactly how to migrate.
+        """
+        prior, _, _ = _make_rejected_verdict(oracle_a, usd)
+        with pytest.raises(TypeError, match="LocalKeypairSigner"):
+            oracle_a.founder_override(
+                prior,
+                result="accepted",
+                reason="Attempting raw keypair call.",
+                founder_signer=founder_keypair,  # type: ignore[arg-type]
                 founder_identity="riley",
             )
 
@@ -377,7 +396,7 @@ class TestThirdPartyReplay:
             prior,
             result="accepted",
             reason="Replay test override.",
-            founder_keypair=founder_keypair,
+            founder_signer=LocalKeypairSigner(founder_keypair),
             founder_identity="riley",
         )
         # Oracle B verifies without needing A's or founder's private key.

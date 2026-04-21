@@ -124,6 +124,7 @@ def test_oracle_md_tier3_override_snippet() -> None:
     from core.primitives.oracle import Oracle
     from core.primitives.schema_verifier import SchemaVerifier
     from core.primitives.exceptions import SignatureError
+    from core.primitives.signer import LocalKeypairSigner
 
     asset_reg = AssetRegistry()
     asset_reg.load(ASSET_REGISTRY_DIR)
@@ -173,7 +174,7 @@ def test_oracle_md_tier3_override_snippet() -> None:
         prior_verdict=tier0,
         result="accepted",
         reason="edge case: quality_score 0.899 rounds to 0.9 per convention",
-        founder_keypair=founder_kp,
+        founder_signer=LocalKeypairSigner(founder_kp),
         founder_identity="founder",
     )
     assert tier3.tier == 3
@@ -188,7 +189,7 @@ def test_oracle_md_tier3_override_snippet() -> None:
             prior_verdict=tier0,
             result="accepted",
             reason="oops",
-            founder_keypair=Ed25519Keypair.generate(),
+            founder_signer=LocalKeypairSigner(Ed25519Keypair.generate()),
             founder_identity="mallory",
         )
     except SignatureError:

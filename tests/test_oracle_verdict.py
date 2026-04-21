@@ -32,6 +32,7 @@ from core.primitives.oracle import (
     OracleVerdict,
     _canonical_bytes,
 )
+from core.primitives.signer import LocalKeypairSigner
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ def _base_kwargs(keypair: Ed25519Keypair) -> dict:
         "evaluator_did": "did:companyos:oracle-node-001",
         "evidence": {"kind": "schema_pass", "detail": "all fields validated"},
         "issued_at": "2026-04-21T12:00:00Z",
-        "keypair": keypair,
+        "signer": LocalKeypairSigner(keypair),
     }
 
 
@@ -152,10 +153,11 @@ class TestConstruction:
         with pytest.raises(TypeError, match="score"):
             OracleVerdict.create(**kwargs)
 
-    def test_wrong_keypair_type_rejected(self, keypair):
+    def test_wrong_signer_type_rejected(self, keypair):
+        """Passing a non-Signer object as `signer` raises TypeError."""
         kwargs = _base_kwargs(keypair)
-        kwargs["keypair"] = keypair.public_key  # pubkey, not keypair
-        with pytest.raises(TypeError, match="keypair"):
+        kwargs["signer"] = keypair.public_key  # Ed25519PublicKey is not a Signer
+        with pytest.raises(TypeError, match="signer"):
             OracleVerdict.create(**kwargs)
 
 

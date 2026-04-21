@@ -55,6 +55,7 @@ from core.primitives.schema_verifier import SchemaVerifier
 from core.primitives.settlement_adapters.mock_adapter import MockSettlementAdapter
 from core.primitives.settlement_adapters.stablecoin_stub import StablecoinStubAdapter
 from core.primitives.settlement_ledger import SettlementEventLedger
+from core.primitives.signer import LocalKeypairSigner
 from core.primitives.sla import InterOrgSLA
 
 
@@ -549,7 +550,7 @@ def test_release_pending_verdict_rejected(asset_registry, tmp_path: Path):
         evaluator_did="did:test:oracle-node",
         evidence={"kind": "schema_fail", "error": "failed validation"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
 
     adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
@@ -594,7 +595,7 @@ def test_release_pending_verdict_refunded(asset_registry, tmp_path: Path):
         evaluator_did="did:test:oracle-node",
         evidence={"kind": "artifact_parse_error", "error": "could not decode"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
 
     adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
@@ -641,7 +642,7 @@ def test_double_machine_verdict_rejected(asset_registry, tmp_path: Path):
         evaluator_did="did:test:oracle",
         evidence={"kind": "schema_fail", "error": "oops"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
     verdict2 = OracleVerdict.create(
         sla_id=sla.sla_id,
@@ -651,7 +652,7 @@ def test_double_machine_verdict_rejected(asset_registry, tmp_path: Path):
         evaluator_did="did:test:oracle",
         evidence={"kind": "schema_pass", "detail": "ok"},
         issued_at="2026-04-21T00:01:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
 
     adapter = MockSettlementAdapter((usd,), ledger=ledger)
@@ -725,7 +726,7 @@ def test_founder_override_path_full_sequence(asset_registry, tmp_path: Path):
         evaluator_did="did:test:oracle",
         evidence={"kind": "schema_fail", "error": "bad"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
 
     # Lock escrow and run tier0 rejection.
@@ -751,7 +752,7 @@ def test_founder_override_path_full_sequence(asset_registry, tmp_path: Path):
         prior_verdict=tier0_verdict,
         result="accepted",
         reason="requester error confirmed by founder review",
-        founder_keypair=founder_kp,
+        founder_signer=LocalKeypairSigner(founder_kp),
         founder_identity=founder_identity,
     )
 
@@ -819,7 +820,7 @@ def test_tampered_verdict_raises_signature_error(asset_registry, tmp_path: Path)
         evaluator_did="did:test:oracle",
         evidence={"kind": "schema_pass"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
     # Tamper: swap result field -- OracleVerdict is frozen, so use dataclasses.replace.
     tampered = dataclasses.replace(verdict, result="rejected")
@@ -854,7 +855,7 @@ def test_mismatched_sla_id_raises_verdict_error(asset_registry, tmp_path: Path):
         evaluator_did="did:test:oracle",
         evidence={"kind": "schema_pass"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
 
     adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
@@ -888,7 +889,7 @@ def test_mismatched_artifact_hash_raises_verdict_error(asset_registry, tmp_path:
         evaluator_did="did:test:oracle",
         evidence={"kind": "schema_pass"},
         issued_at="2026-04-21T00:00:00Z",
-        keypair=node_kp,
+        signer=LocalKeypairSigner(node_kp),
     )
 
     adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)

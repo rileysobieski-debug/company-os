@@ -30,6 +30,7 @@ from core.primitives.canonicalizer_registry import (
 from core.primitives.exceptions import SignatureError
 from core.primitives.identity import Ed25519Keypair, sign as _identity_sign
 from core.primitives.oracle import OracleVerdict, _canonical_bytes
+from core.primitives.signer import LocalKeypairSigner
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ def _base_kwargs(keypair: Ed25519Keypair) -> dict:
         "evaluator_did": "did:companyos:test-node",
         "evidence": {"kind": "schema_pass", "detail": "registry test"},
         "issued_at": "2026-04-21T00:00:00Z",
-        "keypair": keypair,
+        "signer": LocalKeypairSigner(keypair),
     }
 
 
@@ -267,7 +268,7 @@ class TestStubV02Canonicalization:
             evaluator_did="did:companyos:test-node",
             evidence={"kind": "schema_pass"},
             issued_at="2026-04-21T00:00:00Z",
-            keypair=keypair,
+            signer=LocalKeypairSigner(keypair),
         )
         assert v.protocol_version == "companyos-verdict/0.1"
         # Should not raise.
@@ -301,7 +302,7 @@ class TestStubV02Canonicalization:
             evaluator_did="did:companyos:test-node",
             evidence={"kind": "schema_pass"},
             issued_at="2026-04-21T00:00:00Z",
-            keypair=keypair,
+            signer=LocalKeypairSigner(keypair),
             protocol_version="companyos-verdict/0.2",
         )
         assert v.protocol_version == "companyos-verdict/0.2"
@@ -324,7 +325,7 @@ class TestUnknownProtocolVersionOnVerify:
             "evaluator_did": "did:companyos:test-node",
             "evidence": {"kind": "schema_pass"},
             "issued_at": "2026-04-21T00:00:00Z",
-            "keypair": keypair,
+            "signer": LocalKeypairSigner(keypair),
         })
         # Inject an unknown protocol_version into the frozen dataclass.
         tampered = dataclasses.replace(v, protocol_version="companyos-verdict/99.9")
@@ -341,7 +342,7 @@ class TestUnknownProtocolVersionOnVerify:
             "evaluator_did": "did:companyos:test-node",
             "evidence": {"kind": "schema_pass"},
             "issued_at": "2026-04-21T00:00:00Z",
-            "keypair": keypair,
+            "signer": LocalKeypairSigner(keypair),
         })
         tampered = dataclasses.replace(v, protocol_version="companyos-verdict/99.9")
         # Verify it is ValueError, not SignatureError (distinct exception types).
@@ -374,7 +375,7 @@ class TestV1aRegression:
             evaluator_did="did:companyos:oracle-node-001",
             evidence={"kind": "schema_pass", "detail": "regression"},
             issued_at="2026-04-21T12:00:00Z",
-            keypair=keypair,
+            signer=LocalKeypairSigner(keypair),
         )
         v.verify_signature()
 
@@ -388,7 +389,7 @@ class TestV1aRegression:
             evaluator_did="did:companyos:oracle-node-001",
             evidence={"kind": "schema_fail"},
             issued_at="2026-04-21T12:00:00Z",
-            keypair=keypair,
+            signer=LocalKeypairSigner(keypair),
         )
         rehydrated = OracleVerdict.from_dict(v.to_dict())
         rehydrated.verify_signature()
@@ -403,7 +404,7 @@ class TestV1aRegression:
             "evaluator_did": "did:companyos:oracle-node-001",
             "evidence": {"kind": "schema_pass"},
             "issued_at": "2026-04-21T12:00:00Z",
-            "keypair": keypair,
+            "signer": LocalKeypairSigner(keypair),
         }
         hashes = {OracleVerdict.create(**base).verdict_hash for _ in range(3)}
         assert len(hashes) == 1

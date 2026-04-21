@@ -68,6 +68,7 @@ from core.primitives.identity import (
     sign as _identity_sign,
     verify as _identity_verify,
 )
+from core.primitives.signer import LocalKeypairSigner, Signer
 from core.primitives.sla import InterOrgSLA
 from core.primitives.state import FOUNDER_PRINCIPALS
 
@@ -256,15 +257,16 @@ class OracleVerdict:
         evaluator_did: str,
         evidence: dict,
         issued_at: str,
-        keypair: Ed25519Keypair,
+        signer: "Signer",
         protocol_version: str = _PROTOCOL_VERSION_DEFAULT,
         score: "Decimal | None" = None,
     ) -> "OracleVerdict":
         """Strict factory: validate, hash, sign, and return a frozen verdict.
 
-        `keypair` provides both the signature and the embedded `signer`
-        public key. There is exactly one signer per verdict (unlike the SLA
-        where requester + provider both sign independently).
+        `signer` provides both the signature and the embedded `signer`
+        public key via its `.public_key` property and `.sign()` method.
+        There is exactly one signer per verdict (unlike the SLA where
+        requester + provider both sign independently).
 
         `verdict_hash` is the sha256 hex digest of the canonical bytes with
         BOTH `signature` and `verdict_hash` excluded. Sign the same canonical
@@ -296,9 +298,9 @@ class OracleVerdict:
             )
         if not isinstance(issued_at, str) or not issued_at:
             raise ValueError("issued_at must be a non-empty string")
-        if not isinstance(keypair, Ed25519Keypair):
+        if not isinstance(signer, Signer):
             raise TypeError(
-                f"keypair must be an Ed25519Keypair, got {type(keypair).__name__}"
+                f"signer must be a Signer, got {type(signer).__name__}"
             )
         if score is not None and not isinstance(score, Decimal):
             raise TypeError(
@@ -321,7 +323,7 @@ class OracleVerdict:
             "evaluator_did": evaluator_did,
             "evidence": evidence,
             # verdict_hash placeholder excluded below
-            "signer": keypair.public_key,
+            "signer": signer.public_key,
             # signature excluded by canonicalizer
             "issued_at": issued_at,
             "protocol_version": protocol_version,
@@ -341,7 +343,7 @@ class OracleVerdict:
         # commits to the hash (and therefore to all content fields).
         shell_with_hash = dict(shell, verdict_hash=verdict_hash)
         signing_body = canonicalize(shell_with_hash, exclude_verdict_hash=False)
-        sig = _identity_sign(keypair, signing_body)
+        sig = signer.sign(signing_body)
 
         return cls(
             sla_id=sla_id,
@@ -351,7 +353,7 @@ class OracleVerdict:
             evaluator_did=evaluator_did,
             evidence=evidence,
             verdict_hash=verdict_hash,
-            signer=keypair.public_key,
+            signer=signer.public_key,
             signature=sig,
             issued_at=issued_at,
             protocol_version=protocol_version,
@@ -590,7 +592,7 @@ class Oracle:
             evaluator_did=self.node_did,
             evidence=evidence,
             issued_at=issued_at,
-            keypair=self.node_keypair,
+            signer=LocalKeypairSigner(self.node_keypair),
         )
 
     def founder_override(
@@ -598,14 +600,14 @@ class Oracle:
         prior_verdict: OracleVerdict,
         result: OracleResult,
         reason: str,
-        founder_keypair: Ed25519Keypair,
+        founder_signer: "Signer",
         *,
         founder_identity: str,
     ) -> OracleVerdict:
         """Issue a Tier 3 founder-arbitration verdict that supersedes a prior verdict.
 
         The prior verdict's `artifact_hash` and `sla_id` are carried forward.
-        The verdict is signed by `founder_keypair`, not `self.node_keypair`,
+        The verdict is signed by `founder_signer`, not `self.node_keypair`,
         so the cryptographic signer is the founder. `evaluator_did` is still
         `self.node_did` (the node processing the override).
 
@@ -618,8 +620,10 @@ class Oracle:
             The new result to assert (e.g. "accepted" to reverse a rejection).
         reason:
             A non-empty human-readable rationale for the override.
-        founder_keypair:
-            The founder's Ed25519 keypair. Used to sign the verdict.
+        founder_signer:
+            A `Signer` instance (e.g. `LocalKeypairSigner(keypair)`) used to
+            sign the verdict. Passing a raw `Ed25519Keypair` raises a
+            `TypeError` with a clear migration message.
         founder_identity:
             A string identity claim checked against `FOUNDER_PRINCIPALS`.
             Raises `SignatureError` if not present in that set.
@@ -631,11 +635,20 @@ class Oracle:
 
         Raises
         ------
+        TypeError
+            If a raw `Ed25519Keypair` is passed as `founder_signer` (clean
+            break -- wrap it in `LocalKeypairSigner(keypair)` instead).
         ValueError
             If `reason` is empty or whitespace-only.
         SignatureError
             If `founder_identity` is not in FOUNDER_PRINCIPALS.
         """
+        # Guard against callers passing a raw keypair (pre-v1b call shape).
+        if isinstance(founder_signer, Ed25519Keypair):
+            raise TypeError(
+                "Oracle.founder_override now requires a Signer. "
+                "Wrap your Ed25519Keypair in LocalKeypairSigner(keypair)."
+            )
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("reason must be a non-empty string")
         if founder_identity not in FOUNDER_PRINCIPALS:
@@ -657,6 +670,6 @@ class Oracle:
             evaluator_did=self.node_did,
             evidence=evidence,
             issued_at=issued_at,
-            keypair=founder_keypair,
+            signer=founder_signer,
         )
 
