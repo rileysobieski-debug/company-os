@@ -260,6 +260,38 @@ class TestBinaryArtifact:
         assert evidence["kind"] == "sla_missing_schema"
         assert "binary artifact" in evidence["detail"]
 
+    def test_non_binary_sla_with_bad_bytes_but_properties_still_rejects(
+        self, verifier: SchemaVerifier, usd: AssetRef
+    ) -> None:
+        """Regression: the deleted fuzzy fallback.
+
+        If the SLA does NOT declare artifact_format="binary", JSON is
+        strictly expected. A provider that ships junk bytes plus a
+        conveniently-valid artifact_properties dict must not bypass the
+        JSON contract. Per ruling #5, decode failure in non-binary mode
+        is always rejected / artifact_parse_error, regardless of what
+        else the provider attached.
+        """
+        raw_bytes = b"\xff\xfe\x00garbage-not-json"
+        # SLA uses a plain (non-binary) json_schema envelope.
+        envelope = {
+            "kind": "json_schema",
+            "spec_version": "2020-12",
+            "schema": {
+                "type": "object",
+                "required": ["summary"],
+                "properties": {"summary": {"type": "string"}},
+            },
+        }
+        sla = _make_sla_with_hash(usd, raw_bytes, envelope)
+        # Provider tries to sneak validation through by providing properties.
+        sneaky_props = {"summary": "I tricked you"}
+        result, evidence = verifier.verify(
+            sla, raw_bytes, artifact_properties=sneaky_props
+        )
+        assert result == "rejected"
+        assert evidence["kind"] == "artifact_parse_error"
+
 
 # ---------------------------------------------------------------------------
 # Hash binding is step 1 (hash check before schema checks)

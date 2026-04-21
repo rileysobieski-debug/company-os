@@ -336,6 +336,32 @@ around them:
   so there is nothing to dispute mechanically. The window in the
   SLA elapses trivially in v1a.
 
+- **No NodeRegistry-backed authorization on `evaluator_did`.**
+  `OracleVerdict.verify_signature` proves a keypair signed the bytes.
+  It does not prove the keypair is the pubkey registered for
+  `evaluator_did`. A verdict that claims `evaluator_did = did:X` but
+  is signed by `keypair_Y` passes crypto verification today. See
+  `tests/test_oracle_adversarial.py::TestKnownV1aGaps` for the pinned
+  demonstration. v1b must resolve `evaluator_did` through the
+  `NodeRegistry` and reject on pubkey mismatch, mirroring the pattern
+  `InterOrgSLA.verify_signatures(registry=...)` already uses.
+
+- **No version-keyed canonicalizer registry.** Canonical-bytes rules
+  live on the current `oracle.py` module. If v1b changes those rules
+  (e.g., a new serialization for `score` or `evidence`), historical
+  v1a verdicts written under `protocol_version ==
+  "companyos-verdict/0.1"` will fail verification under the new rules.
+  v1b should dispatch byte derivation through a registry keyed on
+  `protocol_version` so archived verdicts stay auditable across
+  version bumps.
+
+- **No KMS-backed signer abstraction.** `Oracle.founder_override`
+  accepts a raw `Ed25519Keypair`, forcing the founder's private key
+  into process memory at call time. A production founder workflow
+  should wrap the signing surface in a `Signer` protocol so the
+  concrete implementation can be a local keypair, an HSM, or a cloud
+  KMS. v1b territory.
+
 The architectural principle behind every cut above: do not build a
 cryptoeconomic jury pool before there are SLAs to disputatize. v1a
 ships exactly what the ~80% of mechanically-decidable B2B agent

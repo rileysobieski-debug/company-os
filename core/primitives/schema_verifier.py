@@ -189,6 +189,11 @@ class SchemaVerifier:
             )
 
         # Step 6: artifact payload resolution
+        # If the SLA declares artifact_format="binary", the provider MUST
+        # supply artifact_properties (the dict the schema validates against).
+        # Otherwise JSON is expected: decode the bytes or reject. No fuzzy
+        # fallback -- an unlabeled artifact with stray properties is the
+        # SLA drafter's problem; strict JSON expectation per ruling #5.
         is_binary = schema_envelope.get("artifact_format") == "binary"
         if is_binary:
             if artifact_properties is None:
@@ -201,23 +206,16 @@ class SchemaVerifier:
                 )
             payload: Any = artifact_properties
         else:
-            # Attempt JSON decode; fall through to artifact_properties if
-            # decode fails and properties were provided.
             try:
                 payload = json.loads(artifact_bytes.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                if artifact_properties is not None:
-                    # Provider supplied properties for a binary-ish artifact
-                    # even though artifact_format was not set. Accept it.
-                    payload = artifact_properties
-                else:
-                    return (
-                        "rejected",
-                        {
-                            "kind": "artifact_parse_error",
-                            "detail": str(exc),
-                        },
-                    )
+                return (
+                    "rejected",
+                    {
+                        "kind": "artifact_parse_error",
+                        "detail": str(exc),
+                    },
+                )
 
         # Step 7: schema validation
         errors = list(validator.iter_errors(payload))

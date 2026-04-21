@@ -344,6 +344,21 @@ class OracleVerdict:
             SignatureError: if the signer embedded in `self.signature`
                 does not match `self.signer`, or if cryptographic
                 verification fails (tampered fields, wrong keypair, etc.).
+
+        v1a scope limits (see ORACLE.md section (e)):
+
+        - No NodeRegistry lookup. This method proves a keypair signed
+          these bytes; it does NOT prove the keypair is authorized to
+          sign AS `self.evaluator_did`. See
+          `tests/test_oracle_adversarial.py::TestKnownV1aGaps`. v1b
+          must close this by resolving evaluator_did through the
+          NodeRegistry and rejecting on pubkey mismatch.
+        - Protocol-version forward-compat. Canonicalization rules live
+          on the current module. If v1b changes those rules, historical
+          v1a verdicts (protocol_version == "companyos-verdict/0.1")
+          will fail verification under the new rules. v1b should
+          dispatch byte derivation through a version-keyed canonicalizer
+          registry so archived verdicts remain auditable.
         """
         # Signer consistency: the pubkey in the Signature must equal the
         # top-level `signer` field. This prevents signature/signer drift
