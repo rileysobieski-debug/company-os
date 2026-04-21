@@ -91,6 +91,15 @@ EvidenceKind = Literal[
     "unsupported_schema_kind",
     "unsupported_schema_version",
     "founder_override",
+    # v1b additions -- used by Tier 1 probabilistic evaluators.
+    # evaluator_error: the evaluator raised an exception during scoring.
+    # evaluator_timeout: the evaluator did not respond within the deadline.
+    # schema_pass_with_score: Tier 1 passed schema AND produced a numeric score.
+    # _VALID_EVIDENCE_KINDS (below) is semi-public: evaluator.py imports it
+    # to validate EvaluationOutput at construction time.
+    "evaluator_error",
+    "evaluator_timeout",
+    "schema_pass_with_score",
 ]
 
 # Resolved at module load so `from_dict` can validate without importing
@@ -212,6 +221,18 @@ def _canonical_bytes(
 default_canonicalizer_registry.register(
     "companyos-verdict/0.1",
     _canonical_bytes,
+)
+
+# Register v1b slot: companyos-verdict/0.2.
+# The 0.2 byte rules are IDENTICAL to 0.1 for now. The version bump exists
+# to prove the registry dispatches correctly and to reserve the slot for
+# real 0.2 canonicalization changes in a future ticket. Tier 1 verdicts
+# (built in B2) will pass protocol_version="companyos-verdict/0.2"
+# explicitly when calling OracleVerdict.create. The default (_PROTOCOL_VERSION_DEFAULT)
+# stays "companyos-verdict/0.1" so existing B0 / v1a code paths are unchanged.
+default_canonicalizer_registry.register(
+    "companyos-verdict/0.2",
+    _canonical_bytes,  # v0.2 byte rules are identical to v0.1 for now
 )
 
 
