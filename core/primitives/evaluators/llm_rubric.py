@@ -10,10 +10,12 @@ Design decisions
 - `llm_client` is an optional injectable callable `(prompt: str) -> str`.
   When None, the evaluator wraps `core.llm_client.single_turn` to produce
   the same signature so call sites are uniform.
-- Score parsing expects a JSON response with a `"score"` key (float [0,1]).
-  Any parse failure (bad JSON, missing key, out-of-range) returns a
-  `"refunded"` output with `evidence.kind = "evaluator_error"` rather than
-  raising -- evaluators must not propagate exceptions to the Oracle.
+- Score parsing is delegated to `score_parser.extract_score`, which accepts
+  real-world LLM response shapes (bare floats, labeled scores, percents,
+  JSON-embedded values, prose-wrapped numbers). Any parse failure
+  (malformed input, missing score, out-of-range) returns a `"refunded"`
+  output with `evidence.kind = "evaluator_error"` rather than raising --
+  evaluators must not propagate exceptions to the Oracle.
 - `canonical_hash` is computed at access time (not cached at construction)
   so it is always consistent with the current field values. It is cheap
   enough that repeated access is not a concern.
@@ -32,12 +34,12 @@ construction never raises a ValueError on the kind field.
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
 from core.primitives.evaluator import EvaluationOutput, PrimaryEvaluator
+from core.primitives.evaluators.score_parser import extract_score
 from core.primitives.signer import Signer
 from core.primitives.sla import InterOrgSLA
 
@@ -130,21 +132,26 @@ class LLMRubricEvaluator:
           1. Decode the artifact bytes (UTF-8; falls back to "<binary>").
           2. Render the rubric prompt.
           3. Call the LLM client.
-          4. Parse the JSON response for a `score` in [0.0, 1.0].
+          4. Extract a validated score from the response via
+             `score_parser.extract_score`. Returns Decimal in [0, 1] or None.
           5. Return an EvaluationOutput with result "accepted" or "rejected".
 
-        On any failure (LLM error, bad JSON, out-of-range score), returns
-        result="refunded" with evidence.kind="evaluator_error".
+        On any failure (LLM error, unparseable response, out-of-range score),
+        returns result="refunded" with evidence.kind="evaluator_error".
         """
         try:
             artifact_str = self._decode_artifact(artifact_bytes)
             prompt = self.build_prompt(sla, artifact_str)
             response_text = self._call_llm(prompt)
-            score = self._parse_score(response_text)
+            score = extract_score(response_text)
+            if score is None:
+                raise ValueError(
+                    "LLM response did not contain a parseable score in [0, 1]"
+                )
             result = "accepted" if score >= self.accuracy_floor else "rejected"
             return EvaluationOutput(
                 result=result,
-                score=Decimal(str(score)),
+                score=score,
                 evidence={
                     "kind": "schema_pass_with_score",
                     "raw_response": response_text,
@@ -199,22 +206,6 @@ class LLMRubricEvaluator:
         if response.error:
             raise RuntimeError(response.error)
         return response.text
-
-    def _parse_score(self, response_text: str) -> float:
-        """Parse the LLM response and extract a validated score in [0.0, 1.0].
-
-        Raises ValueError or KeyError on malformed input; the caller converts
-        these to a refunded output.
-        """
-        data = json.loads(response_text)
-        if "score" not in data:
-            raise KeyError("LLM response missing 'score' key")
-        score = float(data["score"])
-        if not (0.0 <= score <= 1.0):
-            raise ValueError(
-                f"LLM score {score!r} out of valid range [0.0, 1.0]"
-            )
-        return score
 
 
 __all__ = [
