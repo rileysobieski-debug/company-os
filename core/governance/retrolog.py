@@ -23,6 +23,7 @@ from __future__ import annotations
 import datetime
 import functools
 import logging
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Callable
@@ -34,6 +35,50 @@ from core.governance.storage import (
 
 
 _logger = logging.getLogger("governance.retrolog")
+
+
+# Founder-initiated dispatch routes redirect to `/c/<slug>/j/<job_id>`
+# (and sometimes `/c/<slug>/j/<job_id>/...`). This pattern extracts the
+# job id segment from such a Location header or URL. Not part of the
+# public API surface; used by the retrolog decorator so the logged
+# decisions row can be joined back to the job that was actually
+# dispatched rather than just the route that was clicked.
+_JOB_ID_RE = re.compile(r"/j/([A-Za-z0-9_\-]+)")
+
+
+def _extract_job_id_from_response(resp: Any) -> str | None:
+    """Pull a job id out of a Flask view's return value.
+
+    Accepts three shapes: (a) a `flask.wrappers.Response` whose
+    `location` header points at a dispatch URL, (b) a tuple whose
+    first element is a redirect Response, or (c) a string that is
+    itself a URL or path. Returns `None` for anything else. Never
+    raises: a retrolog helper must not break a real dispatch.
+    """
+    if resp is None:
+        return None
+    # Tuple forms: (body, status) or (Response, status) etc.
+    if isinstance(resp, tuple) and resp:
+        resp = resp[0]
+    # Flask Response-like: look for Location header.
+    location = None
+    try:
+        headers = getattr(resp, "headers", None)
+        if headers is not None:
+            location = headers.get("Location")
+    except Exception:
+        location = None
+    if location is None:
+        location = getattr(resp, "location", None)
+    if not location and isinstance(resp, str):
+        location = resp
+    if not location:
+        return None
+    try:
+        match = _JOB_ID_RE.search(str(location))
+    except Exception:
+        return None
+    return match.group(1) if match else None
 
 
 def _now_iso() -> str:
@@ -140,6 +185,7 @@ def retrolog_dispatch(
                     else _default_summary(action_type, merged)
                 )
                 founder_trigger_route = getattr(flask_request, "path", None)
+                job_id = _extract_job_id_from_response(resp)
                 record_human_action(
                     company.company_dir,
                     action_type=action_type,
@@ -147,6 +193,7 @@ def retrolog_dispatch(
                     action_summary=action_summary,
                     outcome="dispatched",
                     founder_trigger_route=founder_trigger_route,
+                    job_id=job_id,
                 )
             except Exception:
                 _logger.error(

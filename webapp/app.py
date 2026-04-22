@@ -189,9 +189,25 @@ def _configure_cost_log_per_request():
 
 
 def _company_or_404(slug: str):
-    """Resolve a company slug (folder name) to (CompanyConfig, summary, depts)."""
+    """Resolve a company slug (folder name) to (CompanyConfig, summary, depts).
+
+    Hardens the slug against path-traversal attacks. An attacker could pass
+    slugs like `..`, `../..`, absolute paths, or Windows drive-letter
+    prefixes to escape the vault root. Every candidate path is resolved
+    and then asserted to live strictly beneath the resolved vault root;
+    anything else 404s without revealing details.
+    """
     from core.env import get_vault_dir
-    company_dir = (get_vault_dir() / slug).resolve()
+    if not slug or any(ch in slug for ch in ("/", "\\", "\x00")) or slug in ("..", "."):
+        abort(404, "Company not found")
+    vault_root = get_vault_dir().resolve()
+    company_dir = (vault_root / slug).resolve()
+    try:
+        company_dir.relative_to(vault_root)
+    except ValueError:
+        abort(404, "Company not found")
+    if company_dir == vault_root:
+        abort(404, "Company not found")
     company = load_company_safe(str(company_dir))
     if company is None:
         abort(404, f"Company '{slug}' not found or unreadable")

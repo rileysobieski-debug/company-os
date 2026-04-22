@@ -215,6 +215,56 @@ def persist_trust_snapshot(conn: sqlite3.Connection, snap: TrustSnapshot) -> Non
         )
 
 
+def persist_trust_snapshot_if_stale(
+    conn: sqlite3.Connection,
+    snap: TrustSnapshot,
+    *,
+    min_interval_seconds: int = 60,
+) -> bool:
+    """Persist `snap` only if the most recent stored row for this agent
+    is older than `min_interval_seconds`. Returns True when a row was
+    written, False when skipped as too recent.
+
+    Motivation: the Phase 1 aggregator runs on every `/governance` page
+    load. Without this guard the `trust_snapshots` table accumulates a
+    new row per agent per page hit, so a few minutes of active use can
+    produce thousands of near-duplicate rows. The PK is
+    `(agent_id, computed_at)` so duplicates are legal but useless.
+    """
+    import datetime as _dt
+
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT computed_at FROM trust_snapshots "
+        "WHERE agent_id = ? ORDER BY computed_at DESC LIMIT 1",
+        (snap.agent_id,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    if row is not None and row["computed_at"]:
+        try:
+            prev_raw = row["computed_at"]
+            if prev_raw.endswith("Z"):
+                prev_raw = prev_raw[:-1] + "+00:00"
+            prev = _dt.datetime.fromisoformat(prev_raw)
+            if prev.tzinfo is None:
+                prev = prev.replace(tzinfo=_dt.timezone.utc)
+            cur_raw = snap.computed_at
+            if cur_raw.endswith("Z"):
+                cur_raw = cur_raw[:-1] + "+00:00"
+            now_dt = _dt.datetime.fromisoformat(cur_raw)
+            if now_dt.tzinfo is None:
+                now_dt = now_dt.replace(tzinfo=_dt.timezone.utc)
+            if (now_dt - prev).total_seconds() < float(min_interval_seconds):
+                return False
+        except ValueError:
+            # Unparseable stored timestamp: fall through and write a fresh
+            # snapshot so the table self-heals rather than locks up.
+            pass
+    persist_trust_snapshot(conn, snap)
+    return True
+
+
 def latest_trust_snapshot(conn: sqlite3.Connection, agent_id: str) -> TrustSnapshot | None:
     cur = conn.cursor()
     cur.execute(

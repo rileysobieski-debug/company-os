@@ -39,7 +39,13 @@ from pathlib import Path
 from typing import Iterable
 
 from core.governance.models import TrustSnapshot
-from core.governance.storage import open_db, persist_trust_snapshot
+from core.governance.storage import open_db, persist_trust_snapshot_if_stale
+
+# Minimum gap between persisted snapshots for the same agent. Aggregation
+# runs on every page load; without the gap the table accumulates a new
+# row per agent per hit. 60 seconds preserves per-minute observability
+# while killing row-bloat under normal UI traffic.
+SNAPSHOT_STALENESS_SECONDS = 60
 
 
 _logger = logging.getLogger("governance.trust")
@@ -324,7 +330,10 @@ def aggregate_trust(
             conn = open_db(company_dir)
             try:
                 for snap in out.values():
-                    persist_trust_snapshot(conn, snap)
+                    persist_trust_snapshot_if_stale(
+                        conn, snap,
+                        min_interval_seconds=SNAPSHOT_STALENESS_SECONDS,
+                    )
             finally:
                 conn.close()
         except Exception:
