@@ -155,6 +155,45 @@ class SettlementReceipt:
 
 
 # ---------------------------------------------------------------------------
+# SettlementContext (R1 retrofit)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class SettlementContext:
+    """Optional release-time context bundle for Tier 1 verdicts.
+
+    Packs challenge-window enforcement and evaluator-identity commitments
+    into one object so the SettlementAdapter Protocol stays narrow. v1a
+    callers pass no context and preserve original behavior.
+
+    Fields
+    ------
+    now:
+        Override for "current time" used in challenge-window calculations.
+        When `None`, the adapter falls back to `datetime.now(timezone.utc)`.
+        Only meaningful for Tier 1 verdicts with `challenge_window_sec` set.
+    challenge_window_sec:
+        Challenge window in seconds. When set, the adapter enforces the
+        window (plus grace buffer) for Tier 1 verdicts. Tier 0 and Tier 3
+        verdicts ignore this field.
+    expected_primary_evaluator_did:
+        When set, the verdict's `evaluator_did` must match. Ruling-18
+        identity check sourced from SLA-embedded data, not a live registry.
+    expected_primary_evaluator_pubkey_hex:
+        When set, `verdict.signer.bytes_hex` must match. Ruling-3 pubkey
+        binding at release time.
+    expected_evaluator_canonical_hash:
+        When set, `verdict.evidence["evaluator_canonical_hash"]` must match.
+        Ruling-18 canonical-hash drift check.
+    """
+
+    now: "datetime | None" = None
+    challenge_window_sec: "int | None" = None
+    expected_primary_evaluator_did: "str | None" = None
+    expected_primary_evaluator_pubkey_hex: "str | None" = None
+    expected_evaluator_canonical_hash: "str | None" = None
+
+
+# ---------------------------------------------------------------------------
 # SettlementAdapter protocol (Ticket 3)
 # ---------------------------------------------------------------------------
 @runtime_checkable
@@ -226,10 +265,7 @@ class SettlementAdapter(Protocol):
         expected_artifact_hash: str,
         requester_did: str,
         provider_did: str,
-        now: "datetime | None" = None,
-        challenge_window_sec: "int | None" = None,
-        expected_primary_evaluator_did: "str | None" = None,
-        expected_evaluator_canonical_hash: "str | None" = None,
+        context: "SettlementContext | None" = None,
     ) -> SettlementReceipt:
         """Settle an escrow based on a signed `OracleVerdict`.
 
@@ -240,10 +276,16 @@ class SettlementAdapter(Protocol):
         - `verdict.artifact_hash == expected_artifact_hash` (hash binding raises
           VerdictError on mismatch).
 
-        For Tier 1 verdicts with `challenge_window_sec` set:
-        - Validates evaluator DID and canonical hash if expected values provided.
-        - Enforces the challenge window: raises ChallengeWindowError if window
-          is still open or an unresolved challenge exists.
+        For Tier 1 verdicts with a `context.challenge_window_sec` set:
+        - Validates evaluator DID, pubkey, and canonical hash when the
+          corresponding expected fields are set on `context`.
+        - Enforces the challenge window (plus grace buffer): raises
+          ChallengeWindowError if window is still open or an unresolved
+          challenge exists.
+
+        Callers without Tier 1 enforcement needs can pass `context=None`
+        (default) and get the v1a behavior: no window enforcement, no
+        identity checks.
 
         Result dispatch:
         - `accepted`  -> release escrow to `provider_did`.
@@ -360,5 +402,6 @@ __all__ = [
     "EscrowHandleId",
     "EscrowStatus",
     "SettlementAdapter",
+    "SettlementContext",
     "SettlementReceipt",
 ]

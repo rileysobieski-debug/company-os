@@ -68,8 +68,7 @@ class _SingleAssetStub:
 
     def release_pending_verdict(  # pragma: no cover
         self, handle, verdict, *, expected_artifact_hash, requester_did, provider_did,
-        now=None, challenge_window_sec=None,
-        expected_primary_evaluator_did=None, expected_evaluator_canonical_hash=None,
+        context=None,
     ):
         raise NotImplementedError
 
@@ -106,8 +105,7 @@ class _MultiAssetStub:
 
     def release_pending_verdict(  # pragma: no cover
         self, handle, verdict, *, expected_artifact_hash, requester_did, provider_did,
-        now=None, challenge_window_sec=None,
-        expected_primary_evaluator_did=None, expected_evaluator_canonical_hash=None,
+        context=None,
     ):
         raise NotImplementedError
 

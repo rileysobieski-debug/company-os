@@ -64,6 +64,13 @@ from typing import Any, Iterator, Literal, Optional
 
 LEDGER_FILENAME = "events.jsonl"
 
+# R2 (Ruling 23): NTP-skew tolerance for challenge-window arithmetic.
+# Challenges arriving within `challenge_window_sec + GRACE_BUFFER_SEC` past
+# the server-stamped verdict_issued timestamp are still accepted. Anything
+# beyond that boundary emits a `challenge_rejected_late` audit event and
+# raises ChallengeWindowError.
+GRACE_BUFFER_SEC = 300
+
 EventKind = Literal[
     "lock",
     "release",
@@ -75,6 +82,7 @@ EventKind = Literal[
     "founder_override",
     "challenge_raised",
     "challenge_resolved",
+    "challenge_rejected_late",
 ]
 
 
@@ -316,6 +324,7 @@ class SettlementEventLedger:
 
 __all__ = [
     "EventKind",
+    "GRACE_BUFFER_SEC",
     "LEDGER_FILENAME",
     "SettlementEvent",
     "SettlementEventLedger",

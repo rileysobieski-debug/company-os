@@ -186,8 +186,9 @@ class ResearcherSim:
         """Settle the escrow against the current verdict.
 
         If `ctx.override_verdict` is set, uses that instead of `ctx.verdict`.
-        Passes `now` (from the sim clock), `challenge_window_sec`, and
-        evaluator authorization fields to `release_pending_verdict`.
+        Builds a `SettlementContext` bundle (sim clock `now`, challenge
+        window, evaluator DID/pubkey/canonical-hash commitments sourced from
+        the SLA) and passes it to `release_pending_verdict`.
 
         Side effect: advances `ctx.state` to "done".
 
@@ -196,37 +197,50 @@ class ResearcherSim:
         SettlementReceipt
             The receipt from the adapter.
         """
+        from core.primitives.settlement_adapters.base import SettlementContext
+
         active_verdict = ctx.override_verdict if ctx.override_verdict is not None else ctx.verdict
         if active_verdict is None:
             raise RuntimeError("handle_settling called before handle_verifying")
 
         sla = ctx.sla
 
-        # Build kwargs for challenge-window enforcement.
-        settle_kwargs: dict = {
-            "expected_artifact_hash": sla.artifact_hash_at_delivery,
-            "requester_did": sla.requester_node_did,
-            "provider_did": sla.provider_node_did,
-            "now": self._now(),
-            "challenge_window_sec": sla.challenge_window_sec,
-        }
-
-        # Evaluator authorization: pass expected DID + hash when set on SLA.
         # Skip the canonical hash check for timeout verdicts (evaluator never ran,
         # so no hash appears in evidence; the adapter would incorrectly block).
         is_timeout = (
             active_verdict.result == "refunded"
             and active_verdict.evidence.get("kind") == "evaluator_timeout"
         )
-        if sla.primary_evaluator_did:
-            settle_kwargs["expected_primary_evaluator_did"] = sla.primary_evaluator_did
-        if sla.canonical_evaluator_hash and not is_timeout:
-            settle_kwargs["expected_evaluator_canonical_hash"] = sla.canonical_evaluator_hash
+
+        expected_did = sla.primary_evaluator_did or None
+        expected_hash = (
+            sla.canonical_evaluator_hash
+            if (sla.canonical_evaluator_hash and not is_timeout)
+            else None
+        )
+        # Note: the pubkey binding (Ruling 3) is NOT surfaced through the
+        # sim's default settle path. Tier 1 verdicts are signed by the
+        # oracle node's keypair, while `sla.primary_evaluator_pubkey_hex`
+        # is the evaluator's pubkey commitment; the two diverge in the
+        # current v1a signing model. When real evaluator-signed Tier 1
+        # verdicts land, callers that want the check can set
+        # `expected_primary_evaluator_pubkey_hex` explicitly on the context
+        # they pass to `release_pending_verdict` outside this default path.
+
+        ctx_bundle = SettlementContext(
+            now=self._now(),
+            challenge_window_sec=sla.challenge_window_sec,
+            expected_primary_evaluator_did=expected_did,
+            expected_evaluator_canonical_hash=expected_hash,
+        )
 
         receipt = self.adapter.release_pending_verdict(
             ctx.handle,
             active_verdict,
-            **settle_kwargs,
+            expected_artifact_hash=sla.artifact_hash_at_delivery,
+            requester_did=sla.requester_node_did,
+            provider_did=sla.provider_node_did,
+            context=ctx_bundle,
         )
         ctx.state = "done"
         return receipt

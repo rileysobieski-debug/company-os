@@ -48,6 +48,7 @@ from core.primitives.settlement_adapters.base import (
     EscrowHandle,
     EscrowHandleId,
     EscrowStatus,
+    SettlementContext,
     SettlementReceipt,
 )
 
@@ -432,7 +433,7 @@ class MockSettlementAdapter:
         record.status = "released"
 
     # ------------------------------------------------------------------
-    # release_pending_verdict (Ticket A5 + B3)
+    # release_pending_verdict (Ticket A5 + B3; R1/R2 retrofits)
     # ------------------------------------------------------------------
     def release_pending_verdict(
         self,
@@ -442,10 +443,7 @@ class MockSettlementAdapter:
         expected_artifact_hash: str,
         requester_did: str,
         provider_did: str,
-        now: "datetime | None" = None,
-        challenge_window_sec: "int | None" = None,
-        expected_primary_evaluator_did: "str | None" = None,
-        expected_evaluator_canonical_hash: "str | None" = None,
+        context: "SettlementContext | None" = None,
     ) -> SettlementReceipt:
         """Settle an escrow based on a signed OracleVerdict.
 
@@ -453,15 +451,18 @@ class MockSettlementAdapter:
         and double-verdict prevention. Emits verdict_issued (and optionally
         founder_override or challenge_resolved) before the settlement event.
 
-        For Tier 1 verdicts with challenge_window_sec set:
-          - Validates evaluator DID and canonical hash if expected values given.
-          - Blocks release if window is still open or unresolved challenge exists.
+        For Tier 1 verdicts with `context.challenge_window_sec` set:
+          - Validates evaluator DID, pubkey, and canonical hash if the
+            corresponding expected fields are set on `context`.
+          - Blocks release if window is still open or an unresolved challenge
+            exists. A `challenge_rejected_late` ledger event counts as
+            "resolved" for this scan (per R2.4 / Ruling 23).
 
         For Tier 3 verdicts with evidence.challenge_hash set:
           - Emits challenge_resolved before the founder_override sequence.
 
-        Tier 0 verdicts: now / challenge_window_sec have no effect (backward compat).
-        Tier 1 verdicts without challenge_window_sec: released immediately (backward compat).
+        v1a callers that pass `context=None` (or omit the kwarg) preserve the
+        pre-B3 behavior: no window enforcement, no identity checks.
 
         Parameters
         ----------
@@ -477,17 +478,10 @@ class MockSettlementAdapter:
             recorded in ledger events).
         provider_did:
             DID of the provider (credited on acceptance).
-        now:
-            Override for "current time" used in window calculations. Defaults
-            to `datetime.now(timezone.utc)`. Only meaningful for Tier 1 verdicts
-            with challenge_window_sec set.
-        challenge_window_sec:
-            If set, enforces the challenge window for Tier 1 verdicts. Tier 0
-            and Tier 3 ignore this parameter.
-        expected_primary_evaluator_did:
-            If set, the verdict's evaluator_did must match this value.
-        expected_evaluator_canonical_hash:
-            If set, verdict.evidence["evaluator_canonical_hash"] must match.
+        context:
+            Optional `SettlementContext` bundle. When `None`, no Tier 1
+            enforcement runs (v1a-compatible behavior). See
+            `SettlementContext` for field semantics.
 
         Returns
         -------
@@ -504,11 +498,29 @@ class MockSettlementAdapter:
         EscrowStateError:
             Escrow not in `locked` state.
         EvaluatorAuthorizationError:
-            Evaluator DID or canonical hash mismatch (Tier 1 only).
+            Evaluator DID, pubkey, or canonical hash mismatch (Tier 1 only).
         ChallengeWindowError:
             Challenge window still open or unresolved challenge blocks release
-            (Tier 1 with challenge_window_sec only).
+            (Tier 1 with context.challenge_window_sec only).
         """
+        # Unpack context fields. When context is None we behave like v1a.
+        now = context.now if context is not None else None
+        challenge_window_sec = (
+            context.challenge_window_sec if context is not None else None
+        )
+        expected_primary_evaluator_did = (
+            context.expected_primary_evaluator_did if context is not None else None
+        )
+        expected_primary_evaluator_pubkey_hex = (
+            context.expected_primary_evaluator_pubkey_hex
+            if context is not None
+            else None
+        )
+        expected_evaluator_canonical_hash = (
+            context.expected_evaluator_canonical_hash
+            if context is not None
+            else None
+        )
         # --- guard: sla_id binding -----------------------------------------
         if verdict.sla_id != handle.ref:
             raise VerdictError(
@@ -566,6 +578,15 @@ class MockSettlementAdapter:
                         "evaluator canonical hash drift"
                     )
 
+            # 3. Evaluator pubkey check (R2.2 / Ruling 3).
+            # Adapter validates the signer's pubkey directly from the verdict
+            # against the SLA-embedded expectation. No live registry lookup.
+            if expected_primary_evaluator_pubkey_hex is not None:
+                if verdict.signer.bytes_hex != expected_primary_evaluator_pubkey_hex:
+                    raise EvaluatorAuthorizationError(
+                        "evaluator pubkey mismatch"
+                    )
+
         # --- record is fetched for amount/asset info below ------------------
         record = self.escrows.get(handle.handle_id)
         if record is None:
@@ -614,6 +635,10 @@ class MockSettlementAdapter:
             )
 
             # 4. Scan for unresolved challenges.
+            # A challenge counts as "not blocking" if it has a matching
+            # `challenge_resolved` event OR a matching `challenge_rejected_late`
+            # event (R2.4 / Ruling 23 -- late-rejected challenges leave an
+            # audit trail but must not block otherwise-valid releases).
             if self._ledger is not None:
                 ledger_events = list(self._ledger.events())
                 challenge_raised_events = [
@@ -623,12 +648,12 @@ class MockSettlementAdapter:
                 ]
                 for cr_ev in challenge_raised_events:
                     ch_hash = cr_ev.metadata.get("challenge_hash", "")
-                    resolved = any(
-                        ev.kind == "challenge_resolved"
+                    resolved_or_late = any(
+                        ev.kind in ("challenge_resolved", "challenge_rejected_late")
                         and ev.metadata.get("challenge_hash") == ch_hash
                         for ev in ledger_events
                     )
-                    if not resolved:
+                    if not resolved_or_late:
                         raise ChallengeWindowError(
                             "unresolved challenge blocks release"
                         )
@@ -810,20 +835,8 @@ class MockSettlementAdapter:
         if challenge.challenger_did not in (requester_did, provider_did):
             raise VerdictError("unauthorized challenger")
 
-        # 4. Ruling 16: challenge must be issued within the window.
-        verdict_issued_dt = datetime.fromisoformat(prior_verdict.issued_at)
-        if verdict_issued_dt.tzinfo is None:
-            verdict_issued_dt = verdict_issued_dt.replace(tzinfo=timezone.utc)
-        window_end = verdict_issued_dt + timedelta(seconds=challenge_window_sec)
-
-        challenge_issued_dt = datetime.fromisoformat(challenge.issued_at)
-        if challenge_issued_dt.tzinfo is None:
-            challenge_issued_dt = challenge_issued_dt.replace(tzinfo=timezone.utc)
-
-        if challenge_issued_dt > window_end:
-            raise ChallengeWindowError("challenge issued after window elapsed")
-
-        # 5. Record challenge_raised event.
+        # 4. Fetch escrow record early so late-rejection events can still
+        #    carry asset_id/amount metadata for the audit trail.
         record = self.escrows.get(handle.handle_id)
         if record is None:
             raise EscrowStateError(
@@ -832,6 +845,72 @@ class MockSettlementAdapter:
         amount = record.handle.locked_amount
         asset = record.handle.asset
 
+        # 5. Ruling 23: use the server-stamped `verdict_issued.ts` from the
+        #    ledger as the authoritative start of the challenge window. Falls
+        #    back to `prior_verdict.issued_at` when no ledger is wired (v1a
+        #    compat: the caller's clock is the only source of truth).
+        from core.primitives.settlement_ledger import GRACE_BUFFER_SEC
+
+        verdict_issued_dt: datetime | None = None
+        if self._ledger is not None:
+            for ev in self._ledger.events():
+                if (
+                    ev.kind == "verdict_issued"
+                    and ev.metadata.get("verdict_hash") == prior_verdict.verdict_hash
+                ):
+                    # Server-stamped ts is canonical UTC-Z; parse and use.
+                    try:
+                        verdict_issued_dt = datetime.fromisoformat(
+                            ev.ts.replace("Z", "+00:00")
+                        )
+                    except ValueError:
+                        verdict_issued_dt = None
+                    break
+
+        if verdict_issued_dt is None:
+            # Fallback: trust the challenger's prior_verdict.issued_at. This
+            # keeps v1a (no-ledger) callers working and gracefully handles
+            # the edge case where verdict_issued has not yet been recorded.
+            verdict_issued_dt = datetime.fromisoformat(prior_verdict.issued_at)
+            if verdict_issued_dt.tzinfo is None:
+                verdict_issued_dt = verdict_issued_dt.replace(tzinfo=timezone.utc)
+
+        if verdict_issued_dt.tzinfo is None:
+            verdict_issued_dt = verdict_issued_dt.replace(tzinfo=timezone.utc)
+
+        window_end = verdict_issued_dt + timedelta(seconds=challenge_window_sec)
+        grace_deadline = window_end + timedelta(seconds=GRACE_BUFFER_SEC)
+
+        challenge_issued_dt = datetime.fromisoformat(challenge.issued_at)
+        if challenge_issued_dt.tzinfo is None:
+            challenge_issued_dt = challenge_issued_dt.replace(tzinfo=timezone.utc)
+
+        if challenge_issued_dt > grace_deadline:
+            # Past window + grace buffer: record a `challenge_rejected_late`
+            # audit event BEFORE raising so the ledger captures the rejection.
+            self._record_event(
+                kind="challenge_rejected_late",
+                handle_id=str(handle.handle_id),
+                asset_id=asset.asset_id,
+                amount_quantity_str=str(amount.quantity),
+                sla_id=handle.ref,
+                outcome_receipt=None,
+                metadata={
+                    "challenge_hash": challenge.challenge_hash,
+                    "prior_verdict_hash": challenge.prior_verdict_hash,
+                    "challenger_did": challenge.challenger_did,
+                    "window_end": window_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "grace_deadline": grace_deadline.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "challenge_issued_at": challenge.issued_at,
+                },
+            )
+            raise ChallengeWindowError(
+                "challenge raised after window plus grace buffer"
+            )
+
+        # 6. Within window (or within grace buffer): record challenge_raised.
         challenge_payload = challenge.to_dict()
         self._record_event(
             kind="challenge_raised",

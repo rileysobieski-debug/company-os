@@ -30,6 +30,7 @@ from core.primitives.money import Money
 from core.primitives.settlement_adapters.base import (
     EscrowHandle,
     EscrowStatus,
+    SettlementContext,
     SettlementReceipt,
 )
 
@@ -110,10 +111,7 @@ class StablecoinStubAdapter:
         expected_artifact_hash: str,
         requester_did: str,
         provider_did: str,
-        now: Any = None,
-        challenge_window_sec: Any = None,
-        expected_primary_evaluator_did: Any = None,
-        expected_evaluator_canonical_hash: Any = None,
+        context: SettlementContext | None = None,
     ) -> SettlementReceipt:
         raise NotImplementedError(
             "release_pending_verdict not implemented on stablecoin stub"

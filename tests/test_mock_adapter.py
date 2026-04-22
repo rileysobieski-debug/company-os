@@ -52,6 +52,7 @@ from core.primitives.identity import Ed25519Keypair
 from core.primitives.money import Money
 from core.primitives.oracle import Oracle, OracleVerdict
 from core.primitives.schema_verifier import SchemaVerifier
+from core.primitives.settlement_adapters.base import SettlementContext
 from core.primitives.settlement_adapters.mock_adapter import MockSettlementAdapter
 from core.primitives.settlement_adapters.stablecoin_stub import StablecoinStubAdapter
 from core.primitives.settlement_ledger import SettlementEventLedger
@@ -1001,8 +1002,10 @@ def test_tier1_release_before_window_elapses_raises(asset_registry, tmp_path: Pa
             expected_artifact_hash=sla.artifact_hash_at_delivery,
             requester_did="did:test:requester",
             provider_did="did:test:provider",
-            now=fake_now,
-            challenge_window_sec=3600,
+            context=SettlementContext(
+                now=fake_now,
+                challenge_window_sec=3600,
+            ),
         )
 
 
@@ -1031,8 +1034,10 @@ def test_tier1_release_after_window_elapses_succeeds(asset_registry, tmp_path: P
         expected_artifact_hash=sla.artifact_hash_at_delivery,
         requester_did="did:test:requester",
         provider_did="did:test:provider",
-        now=fake_now,
-        challenge_window_sec=3600,
+        context=SettlementContext(
+            now=fake_now,
+            challenge_window_sec=3600,
+        ),
     )
 
     assert receipt.outcome == "released"
@@ -1094,8 +1099,10 @@ def test_raise_challenge_blocks_release(asset_registry, tmp_path: Path):
             expected_artifact_hash=sla.artifact_hash_at_delivery,
             requester_did="did:test:requester",
             provider_did="did:test:provider",
-            now=future_now,
-            challenge_window_sec=large_window,
+            context=SettlementContext(
+                now=future_now,
+                challenge_window_sec=large_window,
+            ),
         )
 
 
@@ -1216,11 +1223,11 @@ def test_challenge_from_non_counterparty_raises(asset_registry, tmp_path: Path):
 
 
 def test_late_challenge_ruling16_raises(asset_registry, tmp_path: Path):
-    """raise_challenge with issued_at past the window raises ChallengeWindowError (Ruling 16).
+    """raise_challenge with issued_at past window + grace raises ChallengeWindowError.
 
     The verdict is issued in the far past so that Challenge.create()'s real-time
-    issued_at is always beyond the challenge window (Ruling 16 violation). The
-    challenge signature is valid; only the Ruling 16 time check fails.
+    issued_at is always beyond the challenge window plus grace buffer. The
+    challenge signature is valid; only the Ruling 16 + Ruling 23 time check fails.
     """
     from core.primitives.exceptions import ChallengeWindowError
     from core.primitives.challenge import Challenge
@@ -1235,16 +1242,16 @@ def test_late_challenge_ruling16_raises(asset_registry, tmp_path: Path):
     sla = _make_sla_for_b3(artifact_bytes, usd=usd)
 
     # Verdict issued in the far past; challenge_window_sec=3600 means window
-    # closed long before Challenge.create()'s real-time issued_at.
+    # plus grace closed long before Challenge.create()'s real-time issued_at.
     verdict_issued_at = "2020-01-01T00:00:00Z"
     short_window = 3600
     verdict = _make_tier1_verdict(sla, artifact_bytes, node_kp=node_kp, issued_at=verdict_issued_at)
 
     adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
 
-    # Create a challenge now (real time, well past the window).
+    # Create a challenge now (real time, well past window + grace).
     # verify_signature() will pass (challenge is freshly signed), but the
-    # Ruling 16 time check will fail because challenge.issued_at > window_end.
+    # window + grace time check will fail because challenge.issued_at > grace_deadline.
     challenge = Challenge.create(
         prior_verdict=verdict,
         challenger_did="did:test:requester",
@@ -1252,7 +1259,10 @@ def test_late_challenge_ruling16_raises(asset_registry, tmp_path: Path):
         signer=LocalKeypairSigner(challenger_kp),
     )
 
-    with pytest.raises(ChallengeWindowError, match="challenge issued after window elapsed"):
+    with pytest.raises(
+        ChallengeWindowError,
+        match="challenge raised after window plus grace buffer",
+    ):
         adapter.raise_challenge(
             handle,
             challenge,
@@ -1313,8 +1323,10 @@ def test_tier3_challenge_preemption_full_sequence(asset_registry, tmp_path: Path
             expected_artifact_hash=sla.artifact_hash_at_delivery,
             requester_did="did:test:requester",
             provider_did="did:test:provider",
-            now=inside_window_now,
-            challenge_window_sec=large_window,
+            context=SettlementContext(
+                now=inside_window_now,
+                challenge_window_sec=large_window,
+            ),
         )
 
     # Step 2: raise_challenge -> challenge_raised.
@@ -1418,9 +1430,11 @@ def test_evaluator_did_mismatch_raises(asset_registry, tmp_path: Path):
             expected_artifact_hash=sla.artifact_hash_at_delivery,
             requester_did="did:test:requester",
             provider_did="did:test:provider",
-            now=future_now,
-            challenge_window_sec=3600,
-            expected_primary_evaluator_did="did:test:wrong-evaluator",
+            context=SettlementContext(
+                now=future_now,
+                challenge_window_sec=3600,
+                expected_primary_evaluator_did="did:test:wrong-evaluator",
+            ),
         )
 
 
@@ -1450,9 +1464,11 @@ def test_evaluator_canonical_hash_drift_raises(asset_registry, tmp_path: Path):
             expected_artifact_hash=sla.artifact_hash_at_delivery,
             requester_did="did:test:requester",
             provider_did="did:test:provider",
-            now=future_now,
-            challenge_window_sec=3600,
-            expected_evaluator_canonical_hash="expected-hash-different",
+            context=SettlementContext(
+                now=future_now,
+                challenge_window_sec=3600,
+                expected_evaluator_canonical_hash="expected-hash-different",
+            ),
         )
 
 
@@ -1485,8 +1501,10 @@ def test_tier0_release_with_now_kwarg_ignored(asset_registry, tmp_path: Path):
         expected_artifact_hash=sla.artifact_hash_at_delivery,
         requester_did="did:test:requester",
         provider_did="did:test:provider",
-        now=old_now,
-        challenge_window_sec=3600,
+        context=SettlementContext(
+            now=old_now,
+            challenge_window_sec=3600,
+        ),
     )
 
     assert receipt.outcome == "released"
@@ -1576,4 +1594,313 @@ def test_tier3_without_challenge_hash_no_challenge_resolved_event(
     kinds = [e.kind for e in events]
     assert "challenge_resolved" not in kinds
     assert "founder_override" in kinds
+    assert "release_from_verdict" in kinds
+
+
+# ---------------------------------------------------------------------------
+# R2: pubkey binding + grace-buffer tests (Rulings 3 + 23)
+# ---------------------------------------------------------------------------
+def _make_challenge_with_issued_at(
+    *,
+    prior_verdict: OracleVerdict,
+    challenger_did: str,
+    reason: str,
+    signer: "LocalKeypairSigner",
+    issued_at: str,
+):
+    """Build a signed `Challenge` with a caller-supplied `issued_at`.
+
+    `Challenge.create` always stamps `now()`, which makes grace-buffer tests
+    clock-sensitive. This helper replicates the create() algorithm but lets
+    the test pin `issued_at` to specific pre/post-window timestamps.
+    """
+    import hashlib as _hashlib
+    from core.primitives.canonicalizer_registry import (
+        default_canonicalizer_registry,
+        extract_protocol_version,
+    )
+    from core.primitives.challenge import Challenge
+
+    _PROTOCOL_VERSION_DEFAULT = "companyos-challenge/0.1"
+
+    shell: dict = {
+        "prior_verdict_hash": prior_verdict.verdict_hash,
+        "challenger_did": challenger_did,
+        "reason": reason,
+        "signer": signer.public_key,
+        "issued_at": issued_at,
+        "protocol_version": _PROTOCOL_VERSION_DEFAULT,
+    }
+    _version = extract_protocol_version(shell)
+    canonicalize = default_canonicalizer_registry.get(_version)
+    body_no_hash = canonicalize(shell, True)
+    challenge_hash = _hashlib.sha256(body_no_hash).hexdigest()
+    shell_with_hash = dict(shell, challenge_hash=challenge_hash)
+    signing_body = canonicalize(shell_with_hash, False)
+    sig = signer.sign(signing_body)
+    return Challenge(
+        prior_verdict_hash=prior_verdict.verdict_hash,
+        challenger_did=challenger_did,
+        reason=reason,
+        challenge_hash=challenge_hash,
+        signer=signer.public_key,
+        signature=sig,
+        issued_at=issued_at,
+        protocol_version=_PROTOCOL_VERSION_DEFAULT,
+    )
+
+
+
+def test_pubkey_mismatch_raises_authorization_error(asset_registry, tmp_path: Path):
+    """Tier 1 release with pubkey that doesn't match verdict.signer raises."""
+    from datetime import datetime, timezone
+    from core.primitives.exceptions import EvaluatorAuthorizationError
+
+    usd = asset_registry.get("mock-usd")
+    ledger = SettlementEventLedger(tmp_path)
+
+    node_kp = Ed25519Keypair.generate()
+    artifact_bytes = b'{"summary": "pubkey mismatch"}'
+    sla = _make_sla_for_b3(artifact_bytes, usd=usd)
+
+    verdict = _make_tier1_verdict(sla, artifact_bytes, node_kp=node_kp)
+
+    adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
+
+    # Build a context with a pubkey that does not match verdict.signer.bytes_hex.
+    wrong_pubkey_hex = "00" * 32
+    assert verdict.signer.bytes_hex != wrong_pubkey_hex
+
+    future_now = datetime(2026, 4, 22, 12, 0, 0, tzinfo=timezone.utc)
+    with pytest.raises(EvaluatorAuthorizationError, match="evaluator pubkey mismatch"):
+        adapter.release_pending_verdict(
+            handle,
+            verdict,
+            expected_artifact_hash=sla.artifact_hash_at_delivery,
+            requester_did="did:test:requester",
+            provider_did="did:test:provider",
+            context=SettlementContext(
+                now=future_now,
+                challenge_window_sec=3600,
+                expected_primary_evaluator_pubkey_hex=wrong_pubkey_hex,
+            ),
+        )
+
+
+def test_pubkey_match_succeeds(asset_registry, tmp_path: Path):
+    """Tier 1 release with matching pubkey succeeds (happy path)."""
+    from datetime import datetime, timezone
+
+    usd = asset_registry.get("mock-usd")
+    ledger = SettlementEventLedger(tmp_path)
+
+    node_kp = Ed25519Keypair.generate()
+    artifact_bytes = b'{"summary": "pubkey match"}'
+    sla = _make_sla_for_b3(artifact_bytes, usd=usd)
+
+    verdict = _make_tier1_verdict(sla, artifact_bytes, node_kp=node_kp)
+    adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
+
+    # Extract the actual signer pubkey hex and pass it through the context.
+    actual_pubkey_hex = verdict.signer.bytes_hex
+
+    future_now = datetime(2026, 4, 22, 12, 0, 0, tzinfo=timezone.utc)
+    receipt = adapter.release_pending_verdict(
+        handle,
+        verdict,
+        expected_artifact_hash=sla.artifact_hash_at_delivery,
+        requester_did="did:test:requester",
+        provider_did="did:test:provider",
+        context=SettlementContext(
+            now=future_now,
+            challenge_window_sec=3600,
+            expected_primary_evaluator_pubkey_hex=actual_pubkey_hex,
+        ),
+    )
+
+    assert receipt.outcome == "released"
+    assert receipt.to == "did:test:provider"
+
+
+def test_challenge_within_grace_buffer_succeeds(asset_registry, tmp_path: Path):
+    """Challenge raised at window_end + 250s (within 300s grace) succeeds."""
+    from datetime import datetime, timedelta, timezone
+    from core.primitives.challenge import Challenge
+    from core.primitives.signer import LocalKeypairSigner
+
+    usd = asset_registry.get("mock-usd")
+    ledger = SettlementEventLedger(tmp_path)
+
+    node_kp = Ed25519Keypair.generate()
+    challenger_kp = Ed25519Keypair.generate()
+    artifact_bytes = b'{"summary": "within grace"}'
+    sla = _make_sla_for_b3(artifact_bytes, usd=usd)
+
+    # Verdict issued slightly in the past of "now" so the window has closed
+    # but we are still within grace. Use a window of 60s; challenge issues
+    # at window_end + 250s which is inside 300s grace.
+    verdict_issued_at = "2026-04-21T12:00:00Z"
+    short_window = 60
+    verdict = _make_tier1_verdict(
+        sla, artifact_bytes, node_kp=node_kp, issued_at=verdict_issued_at
+    )
+
+    adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
+
+    # Construct a challenge with issued_at inside grace window.
+    # window_end = 12:01:00, grace_deadline = 12:06:00, within_grace = 12:05:10.
+    challenge_issued_at = "2026-04-21T12:05:10Z"  # window_end + 250s
+    challenge = _make_challenge_with_issued_at(
+        prior_verdict=verdict,
+        challenger_did="did:test:requester",
+        reason="Within grace buffer",
+        signer=LocalKeypairSigner(challenger_kp),
+        issued_at=challenge_issued_at,
+    )
+
+    adapter.raise_challenge(
+        handle,
+        challenge,
+        requester_did="did:test:requester",
+        provider_did="did:test:provider",
+        prior_verdict=verdict,
+        challenge_window_sec=short_window,
+    )
+
+    # challenge_raised event should be recorded (not challenge_rejected_late).
+    events = ledger.load_all()
+    kinds = [e.kind for e in events]
+    assert "challenge_raised" in kinds
+    assert "challenge_rejected_late" not in kinds
+
+
+def test_challenge_past_grace_buffer_rejected_late(asset_registry, tmp_path: Path):
+    """Challenge raised at window_end + 400s (past grace) rejected late + event emitted."""
+    from core.primitives.exceptions import ChallengeWindowError
+    from core.primitives.challenge import Challenge
+    from core.primitives.signer import LocalKeypairSigner
+
+    usd = asset_registry.get("mock-usd")
+    ledger = SettlementEventLedger(tmp_path)
+
+    node_kp = Ed25519Keypair.generate()
+    challenger_kp = Ed25519Keypair.generate()
+    artifact_bytes = b'{"summary": "past grace"}'
+    sla = _make_sla_for_b3(artifact_bytes, usd=usd)
+
+    # Verdict issued at 12:00; window 60s; challenge at 12:07:40 = window_end + 400s.
+    verdict_issued_at = "2026-04-21T12:00:00Z"
+    short_window = 60
+    verdict = _make_tier1_verdict(
+        sla, artifact_bytes, node_kp=node_kp, issued_at=verdict_issued_at
+    )
+
+    adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
+
+    # window_end = 12:01:00, grace_deadline = 12:06:00, past_grace = 12:07:40.
+    challenge_issued_at = "2026-04-21T12:07:40Z"  # window_end + 400s
+    challenge = _make_challenge_with_issued_at(
+        prior_verdict=verdict,
+        challenger_did="did:test:requester",
+        reason="Past grace buffer",
+        signer=LocalKeypairSigner(challenger_kp),
+        issued_at=challenge_issued_at,
+    )
+
+    with pytest.raises(
+        ChallengeWindowError,
+        match="challenge raised after window plus grace buffer",
+    ):
+        adapter.raise_challenge(
+            handle,
+            challenge,
+            requester_did="did:test:requester",
+            provider_did="did:test:provider",
+            prior_verdict=verdict,
+            challenge_window_sec=short_window,
+        )
+
+    # Verify the challenge_rejected_late event was appended BEFORE the raise.
+    events = ledger.load_all()
+    late_events = [e for e in events if e.kind == "challenge_rejected_late"]
+    assert len(late_events) == 1, (
+        f"expected exactly one challenge_rejected_late event, got: "
+        f"{[e.kind for e in events]}"
+    )
+    late_ev = late_events[0]
+    assert late_ev.metadata["challenge_hash"] == challenge.challenge_hash
+    assert late_ev.metadata["prior_verdict_hash"] == verdict.verdict_hash
+    assert late_ev.metadata["challenger_did"] == "did:test:requester"
+    assert "window_end" in late_ev.metadata
+    assert "grace_deadline" in late_ev.metadata
+
+
+def test_challenge_rejected_late_does_not_block_release(asset_registry, tmp_path: Path):
+    """After a challenge_rejected_late, release_pending_verdict still releases."""
+    from datetime import datetime, timezone
+    from core.primitives.challenge import Challenge
+    from core.primitives.exceptions import ChallengeWindowError
+    from core.primitives.signer import LocalKeypairSigner
+
+    usd = asset_registry.get("mock-usd")
+    ledger = SettlementEventLedger(tmp_path)
+
+    node_kp = Ed25519Keypair.generate()
+    challenger_kp = Ed25519Keypair.generate()
+    artifact_bytes = b'{"summary": "late does not block"}'
+    sla = _make_sla_for_b3(artifact_bytes, usd=usd)
+
+    verdict_issued_at = "2026-04-21T12:00:00Z"
+    short_window = 60
+    verdict = _make_tier1_verdict(
+        sla, artifact_bytes, node_kp=node_kp, issued_at=verdict_issued_at
+    )
+
+    adapter, handle = _adapter_with_locked_escrow(usd, ledger, sla)
+
+    # Late challenge: issues past grace deadline -> rejected-late event, exception.
+    challenge_issued_at = "2026-04-21T12:07:40Z"  # window_end + 400s
+    challenge = _make_challenge_with_issued_at(
+        prior_verdict=verdict,
+        challenger_did="did:test:requester",
+        reason="Past grace buffer",
+        signer=LocalKeypairSigner(challenger_kp),
+        issued_at=challenge_issued_at,
+    )
+    with pytest.raises(ChallengeWindowError):
+        adapter.raise_challenge(
+            handle,
+            challenge,
+            requester_did="did:test:requester",
+            provider_did="did:test:provider",
+            prior_verdict=verdict,
+            challenge_window_sec=short_window,
+        )
+
+    # Confirm the rejected-late event exists.
+    pre_release_events = ledger.load_all()
+    assert any(
+        e.kind == "challenge_rejected_late"
+        and e.metadata.get("challenge_hash") == challenge.challenge_hash
+        for e in pre_release_events
+    )
+
+    # Now release should succeed: the late-rejected challenge must not block.
+    future_now = datetime(2026, 4, 21, 13, 0, 0, tzinfo=timezone.utc)  # past window
+    receipt = adapter.release_pending_verdict(
+        handle,
+        verdict,
+        expected_artifact_hash=sla.artifact_hash_at_delivery,
+        requester_did="did:test:requester",
+        provider_did="did:test:provider",
+        context=SettlementContext(
+            now=future_now,
+            challenge_window_sec=short_window,
+        ),
+    )
+
+    assert receipt.outcome == "released"
+    assert receipt.to == "did:test:provider"
+    events = ledger.load_all()
+    kinds = [e.kind for e in events]
     assert "release_from_verdict" in kinds
