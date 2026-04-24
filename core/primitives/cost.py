@@ -156,3 +156,214 @@ def resume_session(session: BudgetSession, approval: bool) -> str:
     if approval and session.state == STATUS_PAUSED:
         session.state = STATUS_ACTIVE
     return session.state
+
+
+# ---------------------------------------------------------------------------
+# Budget holds with TTL (v6 Weeks 4-5 deliverable 7)
+# ---------------------------------------------------------------------------
+# A "hold" is a provisional commitment against the remaining budget. Used
+# by the deterministic evaluator to pre-reserve spend at approval time so
+# a second concurrent request cannot also see the full remaining budget
+# and double-spend it. Holds carry a TTL; a background sweep releases
+# orphaned holds (agent crashed, never confirmed, etc.) so the budget
+# envelope eventually heals.
+
+import threading as _threading
+import uuid as _uuid
+from datetime import datetime as _datetime, timedelta as _timedelta, timezone as _timezone
+from dataclasses import dataclass as _dataclass, field as _field
+
+
+DEFAULT_HOLD_TTL = _timedelta(hours=4)
+
+
+@_dataclass
+class BudgetWallet:
+    """Int-cents wallet used by the v6 holds primitive.
+
+    Distinct from the legacy float-dollars `BudgetSession` above
+    because the evaluator (Memory layer) works in int cents and the
+    hold math must be exact. Legacy and new coexist; a future pass
+    unifies them in Weeks 9-12 when the rewrite of cost.py lands."""
+    wallet_id: str
+    budget_usd_cents: int
+    actual_spend_usd_cents: int = 0
+
+
+@_dataclass(frozen=True)
+class BudgetHold:
+    """A provisional reservation against a BudgetWallet.
+
+    The hold is converted to a real spend via `confirm_hold(wallet, hold)`
+    (moves the reserved amount into actual_spend) or released via
+    `release_hold(wallet, hold)` (returns to remaining budget)."""
+    hold_id: str
+    amount_usd_cents: int
+    created_at: str  # ISO-8601 UTC
+    expires_at: str  # ISO-8601 UTC
+    reason: str = ""
+
+
+@_dataclass
+class BudgetHoldLedger:
+    """Intra-process registry of live holds against a BudgetSession.
+
+    The ledger is NOT persisted by default; callers that need durable
+    holds across process restarts wrap this with `write_holds_to_disk`
+    (v6 Weeks 9-12 operational surface). For now the holds live only
+    while the process runs, which is acceptable because the TTL sweep
+    releases stale holds regardless."""
+    holds: dict[str, BudgetHold] = _field(default_factory=dict)
+    _lock: _threading.Lock = _field(default_factory=_threading.Lock)
+
+    def total_held_cents(self) -> int:
+        with self._lock:
+            return sum(h.amount_usd_cents for h in self.holds.values())
+
+    def register(self, hold: BudgetHold) -> None:
+        with self._lock:
+            self.holds[hold.hold_id] = hold
+
+    def pop(self, hold_id: str) -> BudgetHold | None:
+        with self._lock:
+            return self.holds.pop(hold_id, None)
+
+    def iter_all(self):
+        with self._lock:
+            return list(self.holds.values())
+
+
+class BudgetHoldError(RuntimeError):
+    """Base class for hold-specific failures."""
+
+
+class InsufficientBudgetForHold(BudgetHoldError):
+    """Raised when an attempted hold exceeds remaining budget minus
+    already-held amount. Evaluator treats this as an AUTO_DENY."""
+
+
+class HoldNotFound(BudgetHoldError):
+    """Raised when confirm / release targets an unknown hold id."""
+
+
+class HoldExpired(BudgetHoldError):
+    """Raised when confirm_hold targets a hold whose TTL has passed.
+    The hold is released; caller must re-request a fresh one."""
+
+
+def _utc_now() -> _datetime:
+    return _datetime.now(_timezone.utc)
+
+
+def place_hold(
+    wallet: "BudgetWallet",
+    ledger: BudgetHoldLedger,
+    amount_usd_cents: int,
+    *,
+    ttl: _timedelta = DEFAULT_HOLD_TTL,
+    reason: str = "",
+    now: _datetime | None = None,
+) -> BudgetHold:
+    """Reserve `amount_usd_cents` against the session. Raises
+    `InsufficientBudgetForHold` when the session + existing holds do
+    not leave enough headroom."""
+    resolved_now = now or _utc_now()
+    if amount_usd_cents < 0:
+        raise ValueError("hold amount must be non-negative")
+    total = wallet.budget_usd_cents
+    used = wallet.actual_spend_usd_cents
+    held = ledger.total_held_cents()
+    headroom = total - used - held
+    if amount_usd_cents > headroom:
+        raise InsufficientBudgetForHold(
+            f"hold for {amount_usd_cents}c exceeds headroom {headroom}c "
+            f"(budget={total}c, spent={used}c, held={held}c)",
+        )
+    hold = BudgetHold(
+        hold_id=f"hold_{_uuid.uuid4().hex}",
+        amount_usd_cents=amount_usd_cents,
+        created_at=resolved_now.isoformat(),
+        expires_at=(resolved_now + ttl).isoformat(),
+        reason=reason,
+    )
+    ledger.register(hold)
+    return hold
+
+
+def confirm_hold(
+    wallet: "BudgetWallet",
+    ledger: BudgetHoldLedger,
+    hold_id: str,
+    *,
+    actual_amount_usd_cents: int | None = None,
+    now: _datetime | None = None,
+) -> int:
+    """Convert a hold to actual spend. Returns the amount actually
+    billed (the hold amount, or `actual_amount_usd_cents` when the
+    live charge differed from the pre-reserve).
+
+    A None `actual_amount_usd_cents` means bill exactly the held
+    amount; otherwise the caller declares the real charge and any
+    difference is released back to remaining budget.
+    """
+    resolved_now = now or _utc_now()
+    hold = ledger.pop(hold_id)
+    if hold is None:
+        raise HoldNotFound(hold_id)
+    expires = _parse_iso(hold.expires_at)
+    if resolved_now > expires:
+        raise HoldExpired(
+            f"hold {hold_id} expired at {hold.expires_at}; caller must "
+            "request a fresh hold",
+        )
+    billed = hold.amount_usd_cents if actual_amount_usd_cents is None else actual_amount_usd_cents
+    if billed < 0:
+        raise ValueError("actual_amount must be non-negative")
+    if billed > hold.amount_usd_cents:
+        # Caller over-spent the reservation; charge the full actual.
+        wallet.actual_spend_usd_cents += billed
+    else:
+        wallet.actual_spend_usd_cents += billed
+    return billed
+
+
+def release_hold(
+    ledger: BudgetHoldLedger,
+    hold_id: str,
+) -> BudgetHold:
+    """Release a hold back to remaining budget without spending it.
+    Typical on dispatcher-side failure: the handler errored before
+    the charge went through, so the reservation should not stand."""
+    hold = ledger.pop(hold_id)
+    if hold is None:
+        raise HoldNotFound(hold_id)
+    return hold
+
+
+def sweep_expired_holds(
+    ledger: BudgetHoldLedger,
+    *,
+    now: _datetime | None = None,
+) -> list[BudgetHold]:
+    """Release every expired hold. Intended to run on a timer; the
+    default TTL is 4 hours so hourly sweeps are more than sufficient.
+    Returns the list of released holds so the caller can log them."""
+    resolved_now = now or _utc_now()
+    released: list[BudgetHold] = []
+    for hold in list(ledger.iter_all()):
+        expires = _parse_iso(hold.expires_at)
+        if resolved_now > expires:
+            popped = ledger.pop(hold.hold_id)
+            if popped is not None:
+                released.append(popped)
+    return released
+
+
+def _parse_iso(timestamp: str) -> _datetime:
+    s = timestamp.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    dt = _datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_timezone.utc)
+    return dt
